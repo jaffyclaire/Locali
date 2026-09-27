@@ -1,0 +1,121 @@
+{
+  "colorIssues": [],
+  "emojiIssues": [
+    {
+      "file": "app\\(auth)\\onboarding.tsx",
+      "line": 41,
+      "emojis": "✨",
+      "text": "<Text style={styles.iconEmoji}>✨</Text>"
+    },
+    {
+      "file": "app\\(merchant)\\dashboard.tsx",
+      "line": 350,
+      "emojis": "📍",
+      "text": "{a.icon === \"📍\" ? ("
+    },
+    {
+      "file": "app\\(merchant)\\dashboard.tsx",
+      "line": 352,
+      "emojis": "🔴",
+      "text": ") : a.icon === \"🔴\" ? ("
+    },
+    {
+      "file": "app\\(merchant)\\dashboard.tsx",
+      "line": 354,
+      "emojis": "🔖",
+      "text": ") : a.icon === \"🔖\" ? ("
+    },
+    {
+      "file": "app\\(shopper)\\discover.tsx",
+      "line": 291,
+      "emojis": "🗺",
+      "text": "<Text style={styles.emptyEmoji}>🗺️</Text>"
+    },
+    {
+      "file": "src\\components\\common\\MerchantSheet.tsx",
+      "line": 132,
+      "emojis": "🎃",
+      "text": "<Text style={styles.bannerEmoji}>🎃</Text>"
+    },
+    {
+      "file": "src\\components\\common\\MerchantSheet.tsx",
+      "line": 161,
+      "emojis": "📍",
+      "text": "<Text style={styles.pinEmoji}>📍</Text>"
+    },
+    {
+      "file": "src\\services\\firestoreService.ts",
+      "line": 882,
+      "emojis": "📍",
+      "text": "icon: \"📍\","
+    },
+    {
+      "file": "src\\services\\firestoreService.ts",
+      "line": 903,
+      "emojis": "✓, 🔴",
+      "text": "icon: data.status === \"resolved\" ? \"✓\" : \"🔴\","
+    },
+    {
+      "file": "src\\services\\firestoreService.ts",
+      "line": 919,
+      "emojis": "✓",
+      "text": "icon: \"✓\","
+    },
+    {
+      "file": "src\\services\\firestoreService.ts",
+      "line": 951,
+      "emojis": "🔔",
+      "text": "icon: data.icon || \"🔔\","
+    }
+  ],
+  "mockDataImports": [
+    {
+      "file": "app\\(auth)\\onboarding.tsx",
+      "line": 12,
+      "text": "import { INTERESTS } from \"../../src/data/mockData\";"
+    },
+    {
+      "file": "app\\(shopper)\\discover.tsx",
+      "line": 19,
+      "text": "import { MAP_MERCHANTS, MAP_CATEGORIES } from \"../../src/data/mockData\";"
+    },
+    {
+      "file": "app\\(shopper)\\home.tsx",
+      "line": 11,
+      "text": "import { MERCHANTS, SPONSORED_CARDS } from \"../../src/data/mockData\";"
+    },
+    {
+      "file": "app\\(shopper)\\notifications.tsx",
+      "line": 10,
+      "text": "import { NOTIFICATIONS } from \"../../src/data/mockData\";"
+    },
+    {
+      "file": "src\\components\\common\\FilterSheet.tsx",
+      "line": 10,
+      "text": "import { MAP_CATEGORIES } from \"../../data/mockData\";"
+    },
+    {
+      "file": "src\\components\\common\\HeroAdCarousel.tsx",
+      "line": 10,
+      "text": "import { HERO_ADS } from \"../../data/mockData\";"
+    },
+    {
+      "file": "src\\components\\common\\MerchantSheet.tsx",
+      "line": 14,
+      "text": "import { DAILY_HOURS } from \"../../data/mockData\";"
+    },
+    {
+      "file": "src\\services\\firestoreService.ts",
+      "line": 31,
+      "text": "} from \"../data/mockData\";"
+    }
+  ],
+  "mockDataInline": [
+    {
+      "file": "app\\(auth)\\signup.tsx",
+      "line": 105,
+      "issue": "Fake/mock user placeholder",
+      "text": "placeholder=\"Jane Doe\""
+    }
+  ]
+}
