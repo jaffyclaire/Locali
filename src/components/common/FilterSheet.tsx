@@ -7,7 +7,6 @@ import {
   StyleSheet,
   ScrollView,
 } from "react-native";
-import { MAP_CATEGORIES } from "../../data/mockData";
 import { Colors, Radius, Shadows } from "../../constants/theme";
 
 interface FilterSheetProps {
@@ -22,6 +21,7 @@ interface FilterSheetProps {
   distanceKm: number;
   onChangeDistance: (km: number) => void;
   onReset: () => void;
+  categories: string[];
 }
 
 export const FilterSheet: React.FC<FilterSheetProps> = ({
@@ -36,6 +36,7 @@ export const FilterSheet: React.FC<FilterSheetProps> = ({
   distanceKm,
   onChangeDistance,
   onReset,
+  categories,
 }) => {
   const DISTANCE_STEPS = [1, 2, 3, 5, 8, 10];
 
@@ -99,7 +100,7 @@ export const FilterSheet: React.FC<FilterSheetProps> = ({
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Category</Text>
               <View style={styles.categoryPillsContainer}>
-                {MAP_CATEGORIES.map((cat) => (
+                {categories.map((cat) => (
                   <TouchableOpacity
                     key={cat}
                     onPress={() => onSelectCategory(cat)}
@@ -373,4 +374,3 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
 });
-

@@ -16,6 +16,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { sendPasswordResetEmail } from "firebase/auth";
 import { auth, isFirebaseConfigured } from "../../src/lib/firebase";
 import { useAuthRole } from "../../src/context/AuthRoleContext";
+import { useGoogleAuth } from "../../src/hooks/useGoogleAuth";
 import { Colors, Radius, Shadows } from "../../src/constants/theme";
 import { GoogleIcon, EyeIcon, EyeOffIcon } from "../../src/components/icons/AppIcons";
 import { getReadableAuthErrorMessage } from "../../src/lib/authErrors";
@@ -23,9 +24,11 @@ import { getReadableAuthErrorMessage } from "../../src/lib/authErrors";
 export default function SignInScreen() {
   const router = useRouter();
   const { signIn, role } = useAuthRole();
+  const { handleGoogleSignIn } = useGoogleAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [resetModalVisible, setResetModalVisible] = useState(false);
@@ -52,6 +55,23 @@ export default function SignInScreen() {
       setErrorMessage(getReadableAuthErrorMessage(err));
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleGooglePress = async () => {
+    if (!isFirebaseConfigured()) {
+      return;
+    }
+
+    try {
+      setGoogleLoading(true);
+      setErrorMessage("");
+      await handleGoogleSignIn();
+      // Navigation is handled by onAuthStateChanged in AuthRoleContext
+    } catch (err: any) {
+      setErrorMessage(getReadableAuthErrorMessage(err));
+    } finally {
+      setGoogleLoading(false);
     }
   };
 
@@ -188,13 +208,19 @@ export default function SignInScreen() {
 
             {/* Google button */}
             <TouchableOpacity
-              style={styles.googleButton}
-              onPress={handleSignIn}
-              disabled={loading}
+              style={[styles.googleButton, googleLoading && styles.buttonDisabled]}
+              onPress={handleGooglePress}
+              disabled={googleLoading || loading}
               activeOpacity={0.85}
             >
-              <GoogleIcon size={18} />
-              <Text style={styles.googleButtonText}>Continue with Google</Text>
+              {googleLoading ? (
+                <ActivityIndicator color={Colors.slate[600]} size="small" />
+              ) : (
+                <GoogleIcon size={18} />
+              )}
+              <Text style={styles.googleButtonText}>
+                {googleLoading ? "Signing in..." : "Continue with Google"}
+              </Text>
             </TouchableOpacity>
           </View>
 

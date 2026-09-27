@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { Merchant } from "../../types";
 import MerchantMap from "../MerchantMap";
-import { DAILY_HOURS } from "../../data/mockData";
+// DAILY_HOURS import removed — using merchant.weeklyHours from Firestore instead
 import { Colors, Radius, Shadows } from "../../constants/theme";
 import { StarIcon, CheckIcon, CloseIcon } from "../icons/AppIcons";
 
@@ -163,19 +163,25 @@ export const MerchantSheet: React.FC<MerchantSheetProps> = ({
               </View>
 
               <View style={styles.hoursList}>
-                {DAILY_HOURS.map((h) => (
-                  <View key={h.day} style={styles.hourRow}>
-                    <Text style={styles.dayText}>{h.day}</Text>
-                    <Text
-                      style={[
-                        styles.timeText,
-                        h.hours === "Closed" && styles.closedTimeText,
-                      ]}
-                    >
-                      {h.hours}
-                    </Text>
-                  </View>
-                ))}
+                {merchant.weeklyHours ? (
+                  Object.entries(merchant.weeklyHours).map(([day, hours]) => (
+                    <View key={day} style={styles.hourRow}>
+                      <Text style={styles.dayText}>{day}</Text>
+                      <Text
+                        style={[
+                          styles.timeText,
+                          (hours as any).isClosed && styles.closedTimeText,
+                        ]}
+                      >
+                        {(hours as any).isClosed
+                          ? "Closed"
+                          : `${(hours as any).openTime} – ${(hours as any).closeTime}`}
+                      </Text>
+                    </View>
+                  ))
+                ) : (
+                  <Text style={styles.noHoursText}>Hours not available</Text>
+                )}
               </View>
             </View>
 
@@ -478,6 +484,11 @@ const styles = StyleSheet.create({
     color: Colors.slate[700],
   },
   closedTimeText: {
+    color: Colors.slate[400],
+    fontStyle: "italic",
+  },
+  noHoursText: {
+    fontSize: 12,
     color: Colors.slate[400],
     fontStyle: "italic",
   },

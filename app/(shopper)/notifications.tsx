@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -7,13 +7,41 @@ import {
   StyleSheet,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { NOTIFICATIONS } from "../../src/data/mockData";
+import { NotificationItem } from "../../src/types";
 import { Colors, Radius, Shadows } from "../../src/constants/theme";
+import { fetchUserNotifications } from "../../src/services/firestoreService";
+import { useAuthRole } from "../../src/context/AuthRoleContext";
 
 export default function NotificationsScreen() {
   const [activeTab, setActiveTab] = useState<"Updates" | "Saved Deals">("Updates");
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { user } = useAuthRole();
 
-  const items = NOTIFICATIONS.filter((n) => n.tab === activeTab);
+  useEffect(() => {
+    const loadNotifications = async () => {
+      if (!user?.uid) {
+        console.log("[NotificationsScreen] No user uid — skipping fetch");
+        setLoading(false);
+        return;
+      }
+      setLoading(true);
+      try {
+        const data = await fetchUserNotifications(user.uid);
+        console.log("[NotificationsScreen] Fetched notifications:", data.length);
+        setNotifications(data);
+      } catch (error) {
+        console.error("[NotificationsScreen] Error loading notifications:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadNotifications();
+  }, [user?.uid]);
+
+  const items = notifications.filter((n) => n.tab === activeTab);
+
+  console.log("[NotificationsScreen] loading:", loading, "notifications:", notifications.length, "filtered:", items.length);
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
@@ -48,32 +76,32 @@ export default function NotificationsScreen() {
           contentContainerStyle={styles.listContent}
         >
           {items.map((n) => (
-            <View
-              key={n.id}
-              style={[
-                styles.notificationCard,
-                n.unread && styles.unreadCard,
-              ]}
-            >
               <View
+                key={n.id}
                 style={[
-                  styles.iconCircle,
-                  n.unread ? styles.iconCircleUnread : styles.iconCircleRead,
+                  styles.notificationCard,
+                  n.unread && styles.unreadCard,
                 ]}
               >
-                <Text style={styles.notificationEmoji}>{n.icon}</Text>
-              </View>
-
-              <View style={styles.cardContent}>
-                <View style={styles.cardTitleRow}>
-                  <Text style={styles.cardTitle}>{n.title}</Text>
-                  {n.unread && <View style={styles.unreadDot} />}
+                <View
+                  style={[
+                    styles.iconCircle,
+                    n.unread ? styles.iconCircleUnread : styles.iconCircleRead,
+                  ]}
+                >
+                  <Text style={styles.notificationEmoji}>{n.icon}</Text>
                 </View>
-                <Text style={styles.cardBody}>{n.body}</Text>
-                <Text style={styles.cardTime}>{n.time}</Text>
+
+                <View style={styles.cardContent}>
+                  <View style={styles.cardTitleRow}>
+                    <Text style={styles.cardTitle}>{n.title}</Text>
+                    {n.unread && <View style={styles.unreadDot} />}
+                  </View>
+                  <Text style={styles.cardBody}>{n.body}</Text>
+                  <Text style={styles.cardTime}>{n.time}</Text>
+                </View>
               </View>
-            </View>
-          ))}
+            ))}
           <View style={{ height: 24 }} />
         </ScrollView>
       </View>
@@ -89,6 +117,14 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.slate[50],
+  },
+  emptyContainer: {
+    paddingVertical: 60,
+    alignItems: "center",
+  },
+  emptyText: {
+    fontSize: 14,
+    color: Colors.slate[500],
   },
   header: {
     backgroundColor: Colors.white,
@@ -193,4 +229,3 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
 });
-

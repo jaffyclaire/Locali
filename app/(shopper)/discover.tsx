@@ -11,12 +11,12 @@ import {
   Dimensions,
   Platform,
 } from "react-native";
+// Loading state tracked via console.log only — no visual loading indicators
 import MerchantMap, {
   MerchantMapHandle,
 } from "../../src/components/MerchantMap";
 import * as Location from "expo-location";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { MAP_MERCHANTS, MAP_CATEGORIES } from "../../src/data/mockData";
 import { MapMerchant, Merchant } from "../../src/types";
 import { Colors, Radius, Shadows } from "../../src/constants/theme";
 import {
@@ -31,6 +31,7 @@ import {
 import { CustomMarker } from "../../src/components/map/CustomMarker";
 import { MerchantSheet } from "../../src/components/common/MerchantSheet";
 import { FilterSheet } from "../../src/components/common/FilterSheet";
+import { fetchMerchants, fetchCategories } from "../../src/services/firestoreService";
 
 const { width } = Dimensions.get("window");
 const DEFAULT_CENTER = {
@@ -61,6 +62,9 @@ export default function DiscoverScreen() {
   const [distanceKm, setDistanceKm] = useState(5);
   const [filterOpenNow, setFilterOpenNow] = useState(false);
   const [filterVerified, setFilterVerified] = useState(false);
+  const [merchants, setMerchants] = useState<MapMerchant[]>([]);
+  const [categories, setCategories] = useState<string[]>(["All"]);
+  const [loading, setLoading] = useState(true);
 
   const mapRef = useRef<MerchantMapHandle | null>(null);
   const carouselRef = useRef<FlatList>(null);
@@ -71,7 +75,27 @@ export default function DiscoverScreen() {
     { id: "sponsored", label: "Sponsored" },
   ] as const;
 
-  const filtered = MAP_MERCHANTS.filter((m) => {
+  useEffect(() => {
+    const loadData = async () => {
+      setLoading(true);
+      try {
+        const [merchantsData, categoriesData] = await Promise.all([
+          fetchMerchants(),
+          fetchCategories(),
+        ]);
+        console.log("[DiscoverScreen] Fetched merchants:", merchantsData.length, "categories:", categoriesData.length);
+        setMerchants(merchantsData);
+        setCategories(categoriesData.length > 0 ? ["All", ...categoriesData] : ["All"]);
+      } catch (error) {
+        console.error("[DiscoverScreen] Error loading data:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadData();
+  }, []);
+
+  const filtered = merchants.filter((m) => {
     const matchCat = activeCategory === "All" || m.category === activeCategory;
     const matchQ =
       query === "" ||
@@ -127,6 +151,8 @@ export default function DiscoverScreen() {
   };
 
   const isFilterActive = filterOpenNow || filterVerified || distanceKm !== 5;
+
+  console.log("[DiscoverScreen] loading:", loading, "merchants:", merchants.length, "filtered:", filtered.length);
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
@@ -221,7 +247,7 @@ export default function DiscoverScreen() {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.filterChipsRow}
           >
-            {MAP_CATEGORIES.map((cat) => {
+            {categories.map((cat) => {
               const active = activeCategory === cat;
               return (
                 <TouchableOpacity
@@ -288,11 +314,7 @@ export default function DiscoverScreen() {
           >
             {filtered.length === 0 ? (
               <View style={styles.emptyContainer}>
-                <Text style={styles.emptyEmoji}>🗺️</Text>
                 <Text style={styles.emptyTitle}>No results found</Text>
-                <Text style={styles.emptySub}>
-                  Try adjusting your filters or search
-                </Text>
                 <TouchableOpacity
                   onPress={() => {
                     setQuery("");
@@ -531,6 +553,7 @@ export default function DiscoverScreen() {
             setFilterVerified(false);
             setActiveCategory("All");
           }}
+          categories={categories}
         />
       </View>
     </SafeAreaView>
@@ -676,20 +699,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingVertical: 60,
   },
-  emptyEmoji: {
-    fontSize: 40,
-    marginBottom: 10,
-  },
   emptyTitle: {
     fontSize: 16,
     fontWeight: "700",
     color: Colors.slate[800],
     marginBottom: 4,
-  },
-  emptySub: {
-    fontSize: 13,
-    color: Colors.slate[400],
-    marginBottom: 16,
   },
   clearFiltersButton: {
     backgroundColor: Colors.teal[700],

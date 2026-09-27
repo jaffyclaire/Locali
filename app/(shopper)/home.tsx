@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -8,8 +8,7 @@ import {
   StyleSheet,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { MERCHANTS, SPONSORED_CARDS } from "../../src/data/mockData";
-import { Merchant } from "../../src/types";
+import { MapMerchant, SponsoredCardItem } from "../../src/types";
 import { Colors, Radius, Shadows } from "../../src/constants/theme";
 import {
   LocationIcon,
@@ -19,18 +18,43 @@ import {
 import { HeroAdCarousel } from "../../src/components/common/HeroAdCarousel";
 import { SponsoredCard } from "../../src/components/common/SponsoredCard";
 import { MerchantSheet } from "../../src/components/common/MerchantSheet";
+import { fetchMerchants, fetchSponsoredCards } from "../../src/services/firestoreService";
 
 export default function HomeScreen() {
   const [activeFilter, setActiveFilter] = useState("Nearby");
-  const [selectedMerchant, setSelectedMerchant] = useState<Merchant | null>(null);
+  const [selectedMerchant, setSelectedMerchant] = useState<MapMerchant | null>(null);
+  const [merchants, setMerchants] = useState<MapMerchant[]>([]);
+  const [sponsoredCards, setSponsoredCards] = useState<SponsoredCardItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadData = async () => {
+      setLoading(true);
+      try {
+        const [merchantsData, sponsoredData] = await Promise.all([
+          fetchMerchants(),
+          fetchSponsoredCards(),
+        ]);
+        setMerchants(merchantsData);
+        setSponsoredCards(sponsoredData);
+      } catch (error) {
+        console.error("[HomeScreen] Error loading data:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadData();
+  }, []);
 
   const filters = ["Nearby", "Open Now", "Budget", "Top Rated"];
   const filteredMerchants =
     activeFilter === "Open Now"
-      ? MERCHANTS.filter((m) => m.isOpen)
+      ? merchants.filter((m) => m.isOpen)
       : activeFilter === "Top Rated"
-      ? [...MERCHANTS].sort((a, b) => b.rating - a.rating)
-      : MERCHANTS;
+      ? [...merchants].sort((a, b) => b.rating - a.rating)
+      : merchants;
+
+  console.log("[HomeScreen] loading:", loading, "merchants:", merchants.length, "sponsoredCards:", sponsoredCards.length);
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
@@ -95,93 +119,113 @@ export default function HomeScreen() {
           <View style={styles.forYouSection}>
             <Text style={styles.sectionHeader}>For You</Text>
 
-            {/* Injected first sponsored card */}
-            <View style={styles.feedItem}>
-              <SponsoredCard
-                card={SPONSORED_CARDS[0]}
-                onPress={() =>
-                  setSelectedMerchant({
-                    ...SPONSORED_CARDS[0],
-                    hours: "11:00 AM – 10:00 PM",
-                    address: "55 Noodle St, Downtown SF",
-                  })
-                }
-              />
-            </View>
-
-            {/* Merchant cards */}
-            {filteredMerchants.map((m, idx) => (
-              <View key={m.id} style={styles.feedItem}>
-                <TouchableOpacity
-                  style={styles.merchantCard}
-                  onPress={() => setSelectedMerchant(m)}
-                  activeOpacity={0.88}
-                >
-                  <Image
-                    source={{ uri: m.img }}
-                    style={styles.merchantImage}
-                    resizeMode="cover"
-                  />
-                  <View style={styles.cardBody}>
-                    <View style={styles.cardTitleRow}>
-                      <Text style={styles.merchantCardTitle} numberOfLines={1}>
-                        {m.name}
-                      </Text>
-                      <View
-                        style={[
-                          styles.statusBadge,
-                          m.isOpen ? styles.openBadge : styles.closedBadge,
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.statusText,
-                            m.isOpen ? styles.openText : styles.closedText,
-                          ]}
-                        >
-                          {m.isOpen ? "Open" : "Closed"}
-                        </Text>
-                      </View>
-                    </View>
-
-                    <View style={styles.cardMetaRow}>
-                      <View style={styles.ratingRow}>
-                        <StarIcon size={12} color={Colors.amber[500]} />
-                        <Text style={styles.metaText}>{m.rating}</Text>
-                      </View>
-                      <Text style={styles.dotSeparator}>·</Text>
-                      <Text style={styles.metaText}>{m.distance}</Text>
-                      <Text style={styles.dotSeparator}>·</Text>
-                      <Text style={styles.metaText}>{m.category}</Text>
-                    </View>
-
-                    {m.tag && (
-                      <View style={styles.interestTagBox}>
-                        <Text style={styles.interestTagText}>
-                          Based on your interest: {m.tag}
-                        </Text>
-                      </View>
-                    )}
-                  </View>
-                </TouchableOpacity>
-
-                {/* Injected second sponsored card after index 1 */}
-                {idx === 1 && (
-                  <View style={styles.injectedSponsoredWrapper}>
+            {filteredMerchants.length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyText}>No merchants found</Text>
+              </View>
+            ) : (
+              <>
+                {/* Injected first sponsored card */}
+                {sponsoredCards.length > 0 && (
+                  <View style={styles.feedItem}>
                     <SponsoredCard
-                      card={SPONSORED_CARDS[1]}
+                      card={sponsoredCards[0]}
                       onPress={() =>
                         setSelectedMerchant({
-                          ...SPONSORED_CARDS[1],
-                          hours: "7:00 AM – 6:00 PM",
-                          address: "9 Flour Ave, Downtown SF",
-                        })
+                          ...sponsoredCards[0],
+                          lat: 37.7749,
+                          lng: -122.4194,
+                          latitude: 37.7749,
+                          longitude: -122.4194,
+                          type: "sponsored" as const,
+                          hours: (sponsoredCards[0] as any).hours || "11:00 AM – 10:00 PM",
+                          address: (sponsoredCards[0] as any).address || "55 Noodle St, Downtown SF",
+                        } as unknown as MapMerchant)
                       }
                     />
                   </View>
                 )}
-              </View>
-            ))}
+
+                {/* Merchant cards */}
+                {filteredMerchants.map((m, idx) => (
+                  <View key={m.id} style={styles.feedItem}>
+                    <TouchableOpacity
+                      style={styles.merchantCard}
+                      onPress={() => setSelectedMerchant(m)}
+                      activeOpacity={0.88}
+                    >
+                      <Image
+                        source={{ uri: m.img }}
+                        style={styles.merchantImage}
+                        resizeMode="cover"
+                      />
+                      <View style={styles.cardBody}>
+                        <View style={styles.cardTitleRow}>
+                          <Text style={styles.merchantCardTitle} numberOfLines={1}>
+                            {m.name}
+                          </Text>
+                          <View
+                            style={[
+                              styles.statusBadge,
+                              m.isOpen ? styles.openBadge : styles.closedBadge,
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.statusText,
+                                m.isOpen ? styles.openText : styles.closedText,
+                              ]}
+                            >
+                              {m.isOpen ? "Open" : "Closed"}
+                            </Text>
+                          </View>
+                        </View>
+
+                        <View style={styles.cardMetaRow}>
+                          <View style={styles.ratingRow}>
+                            <StarIcon size={12} color={Colors.amber[500]} />
+                            <Text style={styles.metaText}>{m.rating}</Text>
+                          </View>
+                          <Text style={styles.dotSeparator}>·</Text>
+                          <Text style={styles.metaText}>{m.distance}</Text>
+                          <Text style={styles.dotSeparator}>·</Text>
+                          <Text style={styles.metaText}>{m.category}</Text>
+                        </View>
+
+                        {m.tag && (
+                          <View style={styles.interestTagBox}>
+                            <Text style={styles.interestTagText}>
+                              Based on your interest: {m.tag}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+                    </TouchableOpacity>
+
+                    {/* Injected second sponsored card after index 1 */}
+                    {idx === 1 && sponsoredCards.length > 1 && (
+                      <View style={styles.injectedSponsoredWrapper}>
+                        <SponsoredCard
+                          card={sponsoredCards[1]}
+                          onPress={() =>
+                            setSelectedMerchant({
+                              ...sponsoredCards[1],
+                              lat: 37.7749,
+                              lng: -122.4194,
+                              latitude: 37.7749,
+                              longitude: -122.4194,
+                              type: "sponsored" as const,
+                              hours: (sponsoredCards[1] as any).hours || "7:00 AM – 6:00 PM",
+                              address: (sponsoredCards[1] as any).address || "9 Flour Ave, Downtown SF",
+                            } as unknown as MapMerchant)
+                          }
+                        />
+                      </View>
+                    )}
+                  </View>
+                ))}
+              </>
+            )}
           </View>
 
           <View style={{ height: 24 }} />
@@ -206,6 +250,15 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.slate[50],
+  },
+
+  emptyContainer: {
+    paddingVertical: 40,
+    alignItems: "center",
+  },
+  emptyText: {
+    fontSize: 14,
+    color: Colors.slate[500],
   },
   topBar: {
     backgroundColor: Colors.white,
@@ -374,4 +427,3 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 });
-

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -9,13 +9,31 @@ import {
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuthRole } from "../../src/context/AuthRoleContext";
-import { INTERESTS } from "../../src/data/mockData";
 import { Colors, Radius, Shadows } from "../../src/constants/theme";
+import { fetchInterests, InterestItem } from "../../src/services/firestoreService";
 
 export default function OnboardingScreen() {
   const router = useRouter();
   const { signIn } = useAuthRole();
   const [selected, setSelected] = useState<string[]>(["Coffee"]);
+  const [interests, setInterests] = useState<InterestItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadInterests = async () => {
+      setLoading(true);
+      try {
+        const data = await fetchInterests();
+        console.log("[OnboardingScreen] Fetched interests:", data.length);
+        setInterests(data);
+      } catch (error) {
+        console.error("[OnboardingScreen] Error loading interests:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadInterests();
+  }, []);
 
   const toggleInterest = (item: string) => {
     setSelected((prev) =>
@@ -27,6 +45,8 @@ export default function OnboardingScreen() {
     signIn("shopper");
     router.replace("/(shopper)/home");
   };
+
+  console.log("[OnboardingScreen] loading:", loading, "interests:", interests.length);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -48,12 +68,12 @@ export default function OnboardingScreen() {
 
           {/* Interest pills */}
           <View style={styles.pillsGrid}>
-            {INTERESTS.map((item) => {
-              const isSelected = selected.includes(item);
+            {interests.map((item) => {
+              const isSelected = selected.includes(item.name);
               return (
                 <TouchableOpacity
-                  key={item}
-                  onPress={() => toggleInterest(item)}
+                  key={item.id}
+                  onPress={() => toggleInterest(item.name)}
                   style={[
                     styles.pill,
                     isSelected ? styles.pillSelected : styles.pillUnselected,
@@ -68,7 +88,7 @@ export default function OnboardingScreen() {
                         : styles.pillTextUnselected,
                     ]}
                   >
-                    {item}
+                    {item.name}
                   </Text>
                 </TouchableOpacity>
               );
@@ -196,4 +216,3 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
 });
-

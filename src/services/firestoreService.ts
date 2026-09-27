@@ -25,12 +25,7 @@ import {
   UserProfile,
   Role,
 } from "../types";
-import {
-  MERCHANTS,
-  MAP_MERCHANTS,
-  SPONSORED_CARDS,
-  NOTIFICATIONS,
-} from "../data/mockData";
+// Mock data imports removed — all data now comes from Firestore
 
 export interface GetMerchantsOptions {
   isOpen?: boolean;
@@ -120,7 +115,8 @@ export const fetchMerchants = async (
   options: GetMerchantsOptions = {}
 ): Promise<MapMerchant[]> => {
   if (!isFirebaseConfigured()) {
-    return filterMockMerchants(options);
+    console.warn("[firestoreService] Firebase not configured — returning empty array");
+    return [];
   }
 
   try {
@@ -140,7 +136,8 @@ export const fetchMerchants = async (
     const querySnapshot = await getDocs(merchantsQuery);
 
     if (querySnapshot.empty) {
-      return filterMockMerchants(options);
+      console.warn("[firestoreService] fetchMerchants: query returned empty — returning empty array");
+      return [];
     }
 
     const merchants: MapMerchant[] = [];
@@ -150,8 +147,8 @@ export const fetchMerchants = async (
 
     return merchants;
   } catch (error) {
-    console.warn("Firestore fetchMerchants warning, using fallback data:", error);
-    return filterMockMerchants(options);
+    console.error("[firestoreService] fetchMerchants error:", error);
+    return [];
   }
 };
 
@@ -159,29 +156,22 @@ export const fetchOpenMerchants = async (): Promise<MapMerchant[]> => {
   return fetchMerchants({ isOpen: true });
 };
 
-const filterMockMerchants = (options: GetMerchantsOptions): MapMerchant[] => {
-  let list = [...MAP_MERCHANTS];
-  if (options.isOpen === true) {
-    list = list.filter((m) => m.isOpen);
-  }
-  if (options.category && options.category !== "All") {
-    list = list.filter((m) => m.category === options.category);
-  }
-  return list;
-};
+// filterMockMerchants removed — no more mock data fallback
 
 /**
  * Fetch sponsored promotional cards from sponsoredCards collection
  */
 export const fetchSponsoredCards = async (): Promise<SponsoredCardItem[]> => {
   if (!isFirebaseConfigured()) {
-    return SPONSORED_CARDS;
+    console.warn("[firestoreService] Firebase not configured — returning empty sponsored cards");
+    return [];
   }
   try {
     const q = query(collection(db, "sponsoredCards"), where("active", "==", true), limit(10));
     const snap = await getDocs(q);
     if (snap.empty) {
-      return SPONSORED_CARDS;
+      console.warn("[firestoreService] fetchSponsoredCards: query returned empty — returning empty array");
+      return [];
     }
     return snap.docs.map((d) => {
       const data = d.data();
@@ -201,8 +191,8 @@ export const fetchSponsoredCards = async (): Promise<SponsoredCardItem[]> => {
       };
     });
   } catch (err) {
-    console.warn("fetchSponsoredCards error, using fallback:", err);
-    return SPONSORED_CARDS;
+    console.error("[firestoreService] fetchSponsoredCards error:", err);
+    return [];
   }
 };
 
@@ -211,18 +201,13 @@ export const fetchSponsoredCards = async (): Promise<SponsoredCardItem[]> => {
  */
 export const fetchInterests = async (): Promise<InterestItem[]> => {
   if (!isFirebaseConfigured()) {
-    return [
-      { id: "coffee", name: "Coffee", category: "Food & Drink", icon: "coffee" },
-      { id: "bakery", name: "Bakery", category: "Food & Drink", icon: "croissant" },
-      { id: "groceries", name: "Groceries", category: "Shopping", icon: "cart" },
-      { id: "fastfood", name: "Fast Food", category: "Food & Drink", icon: "burger" },
-      { id: "pharmacy", name: "Pharmacy", category: "Health", icon: "pill" },
-      { id: "retail", name: "Retail", category: "Shopping", icon: "bag" },
-    ];
+    console.warn("[firestoreService] Firebase not configured — returning empty interests");
+    return [];
   }
   try {
     const snap = await getDocs(collection(db, "interests"));
     if (snap.empty) {
+      console.warn("[firestoreService] fetchInterests: query returned empty — returning empty array");
       return [];
     }
     const items: InterestItem[] = [];
@@ -238,7 +223,7 @@ export const fetchInterests = async (): Promise<InterestItem[]> => {
     items.sort((a, b) => a.name.localeCompare(b.name));
     return items;
   } catch (err) {
-    console.warn("fetchInterests error:", err);
+    console.error("[firestoreService] fetchInterests error:", err);
     return [];
   }
 };
@@ -939,12 +924,18 @@ export const fetchMerchantRecentActivity = async (
 export const fetchUserNotifications = async (
   uid: string
 ): Promise<NotificationItem[]> => {
-  if (!isFirebaseConfigured() || !uid) return NOTIFICATIONS;
+  if (!isFirebaseConfigured() || !uid) {
+    console.warn("[firestoreService] Firebase not configured or no uid — returning empty notifications");
+    return [];
+  }
   try {
     const snap = await getDocs(
       collection(db, "notifications", uid, "items")
     );
-    if (snap.empty) return [];
+    if (snap.empty) {
+      console.warn("[firestoreService] fetchUserNotifications: query returned empty — returning empty array");
+      return [];
+    }
     return snap.docs.map((d) => {
       const data = d.data();
       return {
@@ -958,8 +949,8 @@ export const fetchUserNotifications = async (
       };
     });
   } catch (err) {
-    console.warn("fetchUserNotifications error:", err);
-    return NOTIFICATIONS;
+    console.error("[firestoreService] fetchUserNotifications error:", err);
+    return [];
   }
 };
 

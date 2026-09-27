@@ -7,22 +7,47 @@ import {
   StyleSheet,
   Dimensions,
 } from "react-native";
-import { HERO_ADS } from "../../data/mockData";
 import { Colors, Radius, Shadows } from "../../constants/theme";
+import { fetchSponsoredCards } from "../../services/firestoreService";
+import { SponsoredCardItem } from "../../types";
 
 const { width } = Dimensions.get("window");
 
 export const HeroAdCarousel: React.FC = () => {
   const [active, setActive] = useState(0);
+  const [ads, setAds] = useState<SponsoredCardItem[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      setActive((prev) => (prev + 1) % HERO_ADS.length);
-    }, 4500);
-    return () => clearInterval(timer);
+    const loadAds = async () => {
+      setLoading(true);
+      try {
+        const data = await fetchSponsoredCards();
+        console.log("[HeroAdCarousel] Fetched ads:", data.length);
+        setAds(data);
+      } catch (error) {
+        console.error("[HeroAdCarousel] Error loading ads:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadAds();
   }, []);
 
-  const currentAd = HERO_ADS[active];
+  useEffect(() => {
+    if (ads.length === 0) return;
+    const timer = setInterval(() => {
+      setActive((prev) => (prev + 1) % ads.length);
+    }, 4500);
+    return () => clearInterval(timer);
+  }, [ads.length]);
+
+  if (ads.length === 0) {
+    console.log("[HeroAdCarousel] No ads to display");
+    return null;
+  }
+
+  const currentAd = ads[active];
 
   return (
     <View style={styles.container}>
@@ -33,7 +58,7 @@ export const HeroAdCarousel: React.FC = () => {
           resizeMode="cover"
         />
         {/* Dark overlay */}
-        <View style={[styles.overlay, { backgroundColor: currentAd.accent }]} />
+        <View style={[styles.overlay, { backgroundColor: "rgba(0,0,0,0.5)" }]} />
 
         {/* Sponsored Tag */}
         <View style={styles.sponsoredBadge}>
@@ -42,7 +67,7 @@ export const HeroAdCarousel: React.FC = () => {
 
         {/* Dot Indicators */}
         <View style={styles.dotsContainer}>
-          {HERO_ADS.map((_, i) => (
+          {ads.map((_, i) => (
             <TouchableOpacity
               key={i}
               onPress={() => setActive(i)}
@@ -57,15 +82,15 @@ export const HeroAdCarousel: React.FC = () => {
 
         {/* Content */}
         <View style={styles.content}>
-          <Text style={styles.merchantName}>{currentAd.merchant}</Text>
+          <Text style={styles.merchantName}>{currentAd.name}</Text>
           <Text style={styles.headline} numberOfLines={2}>
-            {currentAd.headline}
+            {currentAd.discount}
           </Text>
           <Text style={styles.subText} numberOfLines={1}>
-            {currentAd.sub}
+            {currentAd.category}
           </Text>
           <TouchableOpacity style={styles.ctaButton} activeOpacity={0.85}>
-            <Text style={styles.ctaText}>{currentAd.cta}</Text>
+            <Text style={styles.ctaText}>Learn More</Text>
           </TouchableOpacity>
         </View>
       </View>
