@@ -15,19 +15,16 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { sendPasswordResetEmail } from "firebase/auth";
 import { auth, isFirebaseConfigured } from "../../src/lib/firebase";
 import { useAuthRole } from "../../src/context/AuthRoleContext";
-import { useGoogleAuth } from "../../src/hooks/useGoogleAuth";
 import { Colors, Radius, Shadows } from "../../src/constants/theme";
-import { GoogleIcon, EyeIcon, EyeOffIcon } from "../../src/components/icons/AppIcons";
+import { EyeIcon, EyeOffIcon } from "../../src/components/icons/AppIcons";
 import { getReadableAuthErrorMessage } from "../../src/lib/authErrors";
 
 export default function SignInScreen() {
   const router = useRouter();
   const { signIn, role } = useAuthRole();
-  const { handleGoogleSignIn } = useGoogleAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [resetModalVisible, setResetModalVisible] = useState(false);
@@ -54,23 +51,6 @@ export default function SignInScreen() {
       setErrorMessage(getReadableAuthErrorMessage(err));
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleGooglePress = async () => {
-    if (!isFirebaseConfigured()) {
-      return;
-    }
-
-    try {
-      setGoogleLoading(true);
-      setErrorMessage("");
-      await handleGoogleSignIn();
-      // Navigation is handled by onAuthStateChanged in AuthRoleContext
-    } catch (err: any) {
-      setErrorMessage(getReadableAuthErrorMessage(err));
-    } finally {
-      setGoogleLoading(false);
     }
   };
 
@@ -192,24 +172,6 @@ export default function SignInScreen() {
               activeOpacity={0.85}
             >
               <Text style={styles.primaryButtonText}>Sign In</Text>
-            </TouchableOpacity>
-
-            {/* Divider */}
-            <View style={styles.dividerRow}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>or</Text>
-              <View style={styles.dividerLine} />
-            </View>
-
-            {/* Google button */}
-            <TouchableOpacity
-              style={[styles.googleButton, googleLoading && styles.buttonDisabled]}
-              onPress={handleGooglePress}
-              disabled={googleLoading || loading}
-              activeOpacity={0.85}
-            >
-              <GoogleIcon size={18} />
-              <Text style={styles.googleButtonText}>Continue with Google</Text>
             </TouchableOpacity>
           </View>
 
@@ -398,37 +360,6 @@ const styles = StyleSheet.create({
     color: Colors.white,
     fontSize: 14,
     fontWeight: "700",
-  },
-  dividerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginVertical: 20,
-    gap: 12,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: Colors.slate[200],
-  },
-  dividerText: {
-    fontSize: 12,
-    color: Colors.slate[400],
-  },
-  googleButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 10,
-    borderWidth: 1,
-    borderColor: Colors.slate[200],
-    borderRadius: Radius.xl,
-    paddingVertical: 13,
-    backgroundColor: Colors.white,
-  },
-  googleButtonText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: Colors.slate[700],
   },
   footer: {
     alignItems: "center",
