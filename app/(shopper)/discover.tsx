@@ -312,6 +312,7 @@ export default function DiscoverScreen() {
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.listContainer}
           >
+            {(() => { console.log("[DiscoverScreen] RENDERING merchants:", filtered.map((m) => m.name)); return null; })()}
             {filtered.length === 0 ? (
               <View style={styles.emptyContainer}>
                 <Text style={styles.emptyTitle}>No results found</Text>

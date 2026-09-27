@@ -119,6 +119,7 @@ export default function HomeScreen() {
           <View style={styles.forYouSection}>
             <Text style={styles.sectionHeader}>For You</Text>
 
+            {(() => { console.log("[HomeScreen] RENDERING merchants:", filteredMerchants.map((m) => m.name)); return null; })()}
             {filteredMerchants.length === 0 ? (
               <View style={styles.emptyContainer}>
                 <Text style={styles.emptyText}>No merchants found</Text>
