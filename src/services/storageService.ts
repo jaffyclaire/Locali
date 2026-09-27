@@ -1,6 +1,11 @@
 import * as ImagePicker from "expo-image-picker";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { storage, isFirebaseConfigured } from "../lib/firebase";
+
+// ============================================================================
+// Cloudinary Configuration
+// ============================================================================
+const CLOUDINARY_CLOUD_NAME = "j7xlqkao";
+const CLOUDINARY_UPLOAD_PRESET = "Locali";
+const CLOUDINARY_UPLOAD_URL = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`;
 
 /**
  * Pick an image from device gallery for covers or photo gallery
@@ -59,26 +64,61 @@ export const pickAvatarImage = async (): Promise<string | null> => {
 };
 
 /**
- * Upload local file URI to Firebase Storage and return download URL
+ * Upload local file URI to Cloudinary and return the hosted URL.
+ *
+ * Uses unsigned upload preset since there is no backend server to sign requests.
+ * The upload preset is configured in Cloudinary dashboard with folder restrictions
+ * and format limits for security.
+ *
+ * @param uri - Local file URI from expo-image-picker
+ * @param storagePath - Logical path used as the folder/name prefix in Cloudinary
+ * @returns Cloudinary-hosted HTTPS URL
  */
 export const uploadImageAsync = async (
   uri: string,
   storagePath: string
 ): Promise<string> => {
-  if (!isFirebaseConfigured()) {
-    // Development fallback if Storage is not configured
-    return uri;
-  }
-
   try {
-    const response = await fetch(uri);
-    const blob = await response.blob();
-    const storageRef = ref(storage, storagePath);
-    await uploadBytes(storageRef, blob);
-    const downloadUrl = await getDownloadURL(storageRef);
+    console.log("[storageService] Starting Cloudinary upload for:", storagePath);
+
+    // Create FormData for Cloudinary unsigned upload
+    const formData = new FormData();
+
+    // Append the file — React Native's FormData handles blob/file objects
+    formData.append("file", {
+      uri,
+      type: "image/jpeg",
+      name: `${storagePath.replace(/\//g, "_")}.jpg`,
+    } as any);
+
+    // Append the unsigned upload preset
+    formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+
+    // Append folder for organization (use the storagePath's first segment as folder)
+    const folder = storagePath.split("/")[0] || "locali";
+    formData.append("folder", folder);
+
+    // Make the upload request
+    const response = await fetch(CLOUDINARY_UPLOAD_URL, {
+      method: "POST",
+      body: formData,
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      console.error("[storageService] Cloudinary upload failed:", data);
+      throw new Error(data.error?.message || "Cloudinary upload failed");
+    }
+
+    const downloadUrl = data.secure_url;
+    console.log("[storageService] Cloudinary upload complete:", downloadUrl);
     return downloadUrl;
   } catch (err) {
-    console.error("uploadImageAsync error:", err);
+    console.error("[storageService] uploadImageAsync error:", err);
     throw err;
   }
 };
