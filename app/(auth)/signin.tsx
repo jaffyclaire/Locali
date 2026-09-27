@@ -8,7 +8,6 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
-  ActivityIndicator,
   Modal,
 } from "react-native";
 import { useRouter } from "expo-router";
@@ -192,11 +191,7 @@ export default function SignInScreen() {
               disabled={loading}
               activeOpacity={0.85}
             >
-              {loading ? (
-                <ActivityIndicator color={Colors.white} size="small" />
-              ) : (
-                <Text style={styles.primaryButtonText}>Sign In</Text>
-              )}
+              <Text style={styles.primaryButtonText}>Sign In</Text>
             </TouchableOpacity>
 
             {/* Divider */}
@@ -213,14 +208,8 @@ export default function SignInScreen() {
               disabled={googleLoading || loading}
               activeOpacity={0.85}
             >
-              {googleLoading ? (
-                <ActivityIndicator color={Colors.slate[600]} size="small" />
-              ) : (
-                <GoogleIcon size={18} />
-              )}
-              <Text style={styles.googleButtonText}>
-                {googleLoading ? "Signing in..." : "Continue with Google"}
-              </Text>
+              <GoogleIcon size={18} />
+              <Text style={styles.googleButtonText}>Continue with Google</Text>
             </TouchableOpacity>
           </View>
 
@@ -296,13 +285,7 @@ export default function SignInScreen() {
               disabled={resetLoading}
               activeOpacity={0.85}
             >
-              {resetLoading ? (
-                <ActivityIndicator color={Colors.white} size="small" />
-              ) : (
-                <Text style={styles.modalSubmitButtonText}>
-                  Send Reset Link
-                </Text>
-              )}
+              <Text style={styles.modalSubmitButtonText}>Send Reset Link</Text>
             </TouchableOpacity>
           </View>
         </View>
