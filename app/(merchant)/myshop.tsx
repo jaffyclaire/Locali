@@ -112,8 +112,10 @@ export default function MerchantMyShop() {
       if (!uri) return;
 
       setUploadingCover(true);
+      console.log("[myshop] Starting cover upload for merchant:", merchant.id);
       const remotePath = `merchants/${merchant.id}/cover-${Date.now()}.jpg`;
       const downloadUrl = await uploadImageAsync(uri, remotePath);
+      console.log("[myshop] Cover upload complete:", downloadUrl);
 
       await updateMerchantDoc(String(merchant.id), {
         coverPhotoUrl: downloadUrl,
@@ -144,8 +146,10 @@ export default function MerchantMyShop() {
       if (!uri) return;
 
       setUploadingGallery(true);
+      console.log("[myshop] Starting gallery upload for merchant:", merchant.id);
       const remotePath = `merchants/${merchant.id}/gallery-${Date.now()}.jpg`;
       const downloadUrl = await uploadImageAsync(uri, remotePath);
+      console.log("[myshop] Gallery upload complete:", downloadUrl);
 
       const existingPhotos = merchant.photos || [];
       const updatedPhotos = [...existingPhotos, downloadUrl];
@@ -415,11 +419,7 @@ export default function MerchantMyShop() {
                     disabled={uploadingCover}
                     activeOpacity={0.8}
                   >
-                    {uploadingCover ? (
-                      <ActivityIndicator size="small" color={Colors.slate[800]} />
-                    ) : (
-                      <Text style={styles.changeCoverText}>Change</Text>
-                    )}
+                    <Text style={styles.changeCoverText}>Change</Text>
                   </TouchableOpacity>
                 </View>
 
@@ -440,14 +440,7 @@ export default function MerchantMyShop() {
                       disabled={uploadingGallery}
                       activeOpacity={0.7}
                     >
-                      {uploadingGallery ? (
-                        <ActivityIndicator
-                          size="small"
-                          color={Colors.slate[500]}
-                        />
-                      ) : (
-                        <PlusIcon size={20} color={Colors.slate[400]} />
-                      )}
+                      <PlusIcon size={20} color={Colors.slate[400]} />
                     </TouchableOpacity>
                   </View>
                 </View>
