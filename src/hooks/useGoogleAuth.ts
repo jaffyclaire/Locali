@@ -9,32 +9,23 @@ import { getReadableAuthErrorMessage } from "../lib/authErrors";
 WebBrowser.maybeCompleteAuthSession();
 
 // ============================================================================
-// CONFIGURATION — Paste your real Firebase OAuth client IDs below
+// CONFIGURATION — Expo Go Compatible Google Sign-In
 // ============================================================================
-// These are placeholder values. Replace each with the corresponding client ID
-// from your Firebase project (locali-dca58):
+// For Expo Go, ONLY the webClientId is needed. The proxy-based web OAuth flow
+// is used, which opens a browser-based Google sign-in that works identically
+// in Expo Go and on web.
 //
-//   webClientId     → Firebase Console → Authentication → Sign-in method
-//                       → Google → Web SDK configuration → Web client ID
-//   iosClientId     → Same page → iOS client ID
-//   androidClientId → Same page → Android client ID
+// Replace this with your real Web Client ID from:
+//   Firebase Console → Authentication → Sign-in method → Google
+//   → Web SDK configuration → Web client ID
 //
-// After pasting, the file will look like:
-//   webClientId: "123456789-abc123.apps.googleusercontent.com",
-//   iosClientId: "123456789-def456.apps.googleusercontent.com",
-//   androidClientId: "123456789-ghi789.apps.googleusercontent.com",
+// The webClientId format is: <project-number>-<random>.apps.googleusercontent.com
 // ============================================================================
-const GOOGLE_CLIENT_IDS = {
-  webClientId: "YOUR_WEB_CLIENT_ID.apps.googleusercontent.com",
-  iosClientId: "YOUR_IOS_CLIENT_ID.apps.googleusercontent.com",
-  androidClientId: "YOUR_ANDROID_CLIENT_ID.apps.googleusercontent.com",
-};
+const GOOGLE_WEB_CLIENT_ID = "YOUR_WEB_CLIENT_ID.apps.googleusercontent.com";
 
 export const useGoogleAuth = () => {
   const [request, response, promptAsync] = Google.useAuthRequest({
-    webClientId: GOOGLE_CLIENT_IDS.webClientId,
-    iosClientId: GOOGLE_CLIENT_IDS.iosClientId,
-    androidClientId: GOOGLE_CLIENT_IDS.androidClientId,
+    webClientId: GOOGLE_WEB_CLIENT_ID,
   });
 
   const handleGoogleSignIn = useCallback(async (): Promise<void> => {
@@ -43,23 +34,28 @@ export const useGoogleAuth = () => {
     }
 
     try {
+      console.log("[useGoogleAuth] Starting Google sign-in flow");
       const result = await promptAsync();
 
       // User cancelled the Google popup/redirect — handle gracefully
       if (result.type !== "success") {
+        console.log("[useGoogleAuth] Google sign-in cancelled or failed:", result.type);
         return;
       }
 
       const { id_token } = result.params;
       if (!id_token) {
+        console.warn("[useGoogleAuth] No id_token in Google sign-in response");
         return;
       }
 
+      console.log("[useGoogleAuth] Got id_token, exchanging for Firebase credential");
       const credential = GoogleAuthProvider.credential(id_token);
       await signInWithCredential(auth, credential);
+      console.log("[useGoogleAuth] Firebase sign-in successful");
     } catch (err: any) {
       const message = getReadableAuthErrorMessage(err);
-      console.warn("Google Sign-In error:", message);
+      console.error("[useGoogleAuth] Google Sign-In error:", message);
       throw err;
     }
   }, [promptAsync]);
