@@ -21,7 +21,6 @@ import {
 } from "../../src/components/icons/AppIcons";
 import {
   fetchMerchantByOwner,
-  fetchMerchants,
   fetchMerchantPerformanceMetrics,
   fetchMerchantRecentActivity,
   recordDailyCheckIn,
@@ -58,11 +57,9 @@ export default function MerchantDashboard() {
       if (user?.uid) {
         currentMerchant = await fetchMerchantByOwner(user.uid);
       }
-      if (!currentMerchant) {
-        const all = await fetchMerchants({ limitCount: 1 });
-        if (all.length > 0) currentMerchant = all[0];
-      }
 
+      // No merchant document means the owner never finished merchant-setup.
+      // Skip all metric/activity queries — never query with an empty merchantId.
       if (currentMerchant) {
         setMerchant(currentMerchant);
         setIsOpen(Boolean(currentMerchant.isOpen));
@@ -186,9 +183,27 @@ export default function MerchantDashboard() {
             />
           }
         >
-          {loading && !merchant ? (
+          {loading ? (
             <View style={{ paddingVertical: 48, alignItems: "center" }}>
               <ActivityIndicator size="large" color={Colors.teal[600]} />
+            </View>
+          ) : !merchant ? (
+            <View style={styles.emptyState}>
+              <View style={styles.emptyStateIconCircle}>
+                <TagIcon size={28} color={Colors.teal[700]} />
+              </View>
+              <Text style={styles.emptyStateTitle}>Finish setting up your business</Text>
+              <Text style={styles.emptyStateSubtitle}>
+                Complete your merchant setup to see your dashboard, performance
+                metrics, and recent activity.
+              </Text>
+              <TouchableOpacity
+                style={styles.emptyStateButton}
+                onPress={() => router.push("/(auth)/merchant-setup")}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.emptyStateButtonText}>Set Up My Business</Text>
+              </TouchableOpacity>
             </View>
           ) : (
             <>
@@ -672,6 +687,49 @@ const styles = StyleSheet.create({
     color: Colors.teal[700],
     fontSize: 11,
     fontWeight: "600",
+  },
+  emptyState: {
+    backgroundColor: Colors.white,
+    borderRadius: Radius["2xl"],
+    borderWidth: 1,
+    borderColor: Colors.slate[100],
+    padding: 32,
+    alignItems: "center",
+    gap: 8,
+    ...Shadows.md,
+  },
+  emptyStateIconCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.teal[50],
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 8,
+  },
+  emptyStateTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: Colors.slate[800],
+    textAlign: "center",
+  },
+  emptyStateSubtitle: {
+    fontSize: 13,
+    color: Colors.slate[500],
+    textAlign: "center",
+    lineHeight: 19,
+    marginBottom: 12,
+  },
+  emptyStateButton: {
+    backgroundColor: Colors.teal[700],
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: Radius.xl,
+  },
+  emptyStateButtonText: {
+    color: Colors.white,
+    fontSize: 14,
+    fontWeight: "700",
   },
   activitySection: {
     gap: 10,
