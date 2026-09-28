@@ -32,6 +32,8 @@ import { CustomMarker } from "../../src/components/map/CustomMarker";
 import { MerchantSheet } from "../../src/components/common/MerchantSheet";
 import { FilterSheet } from "../../src/components/common/FilterSheet";
 import { fetchMerchants, fetchCategories } from "../../src/services/firestoreService";
+import { openDirections } from "../../src/services/directionsService";
+import { useAuthRole } from "../../src/context/AuthRoleContext";
 
 const { width } = Dimensions.get("window");
 const DEFAULT_CENTER = {
@@ -52,6 +54,7 @@ const PIN_COLOR: Record<MapMerchant["type"], string> = {
 };
 
 export default function DiscoverScreen() {
+  const { user } = useAuthRole();
   const [query, setQuery] = useState("");
   const [viewMode, setViewMode] = useState<"list" | "map">("list");
   const [activeCategory, setActiveCategory] = useState("All");
@@ -418,10 +421,22 @@ export default function DiscoverScreen() {
                       ]}
                     />
                     <TouchableOpacity
-                      style={styles.directionsOverlayButton}
+                      style={[
+                        styles.directionsOverlayButton,
+                        (m.lat == null || m.lng == null) &&
+                          styles.directionsOverlayButtonDisabled,
+                      ]}
                       activeOpacity={0.8}
+                      onPress={() =>
+                        openDirections(m.lat, m.lng, m.name, m.id, user?.uid)
+                      }
+                      disabled={m.lat == null || m.lng == null}
                     >
-                      <Text style={styles.directionsOverlayText}>Directions</Text>
+                      <Text style={styles.directionsOverlayText}>
+                        {m.lat != null && m.lng != null
+                          ? "Directions"
+                          : "No location"}
+                      </Text>
                     </TouchableOpacity>
                   </View>
                 </TouchableOpacity>
@@ -846,6 +861,9 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: Radius.md,
     ...Shadows.sm,
+  },
+  directionsOverlayButtonDisabled: {
+    backgroundColor: Colors.slate[300],
   },
   directionsOverlayText: {
     color: Colors.white,

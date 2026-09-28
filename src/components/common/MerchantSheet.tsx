@@ -14,6 +14,8 @@ import MerchantMap from "../MerchantMap";
 // DAILY_HOURS import removed — using merchant.weeklyHours from Firestore instead
 import { Colors, Radius, Shadows } from "../../constants/theme";
 import { StarIcon, CheckIcon, CloseIcon } from "../icons/AppIcons";
+import { openDirections } from "../../services/directionsService";
+import { useAuthRole } from "../../context/AuthRoleContext";
 
 interface MerchantSheetProps {
   merchant: Merchant | null;
@@ -30,14 +32,21 @@ export const MerchantSheet: React.FC<MerchantSheetProps> = ({
   onClose,
   showHolidayBanner = false,
 }) => {
+  const { user } = useAuthRole();
   const [reported, setReported] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [reportOption, setReportOption] = useState("");
 
   if (!merchant) return null;
 
-  const lat = (merchant as any).lat ?? 37.7749;
-  const lng = (merchant as any).lng ?? -122.4194;
+  const lat = (merchant as any).lat ?? merchant.latitude;
+  const lng = (merchant as any).lng ?? merchant.longitude;
+  const hasCoords = lat != null && lng != null && !isNaN(lat) && !isNaN(lng);
+
+  const handleDirections = async () => {
+    if (!hasCoords) return;
+    await openDirections(lat, lng, merchant.name, merchant.id, user?.uid);
+  };
 
   const handleClose = () => {
     setShowReport(false);
@@ -215,8 +224,18 @@ export const MerchantSheet: React.FC<MerchantSheetProps> = ({
                     },
                   ]}
                 />
-                <TouchableOpacity style={styles.directionsButton} activeOpacity={0.8}>
-                  <Text style={styles.directionsText}>Get Directions</Text>
+                <TouchableOpacity
+                  style={[
+                    styles.directionsButton,
+                    !hasCoords && styles.directionsButtonDisabled,
+                  ]}
+                  activeOpacity={0.8}
+                  onPress={handleDirections}
+                  disabled={!hasCoords}
+                >
+                  <Text style={styles.directionsText}>
+                    {hasCoords ? "Get Directions" : "No location"}
+                  </Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -531,6 +550,9 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: Radius.md,
     ...Shadows.sm,
+  },
+  directionsButtonDisabled: {
+    backgroundColor: Colors.slate[300],
   },
   directionsText: {
     color: Colors.white,
