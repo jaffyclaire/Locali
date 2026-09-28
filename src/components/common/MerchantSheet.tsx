@@ -168,7 +168,7 @@ export const MerchantSheet: React.FC<MerchantSheetProps> = ({
               <Text style={styles.sectionTitle}>Store Details</Text>
               <View style={styles.addressRow}>
                 <Text style={styles.pinEmoji}>📍</Text>
-                <Text style={styles.addressText}>{merchant.address || "12 Market St, Downtown"}</Text>
+                <Text style={styles.addressText}>{merchant.address || "Address not available"}</Text>
               </View>
 
               <View style={styles.hoursList}>

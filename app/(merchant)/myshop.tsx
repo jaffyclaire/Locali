@@ -13,6 +13,7 @@ import {
   Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
 import { Colors, Radius, Shadows } from "../../src/constants/theme";
 import {
   StarIcon,
@@ -41,6 +42,7 @@ import { Merchant, OperatingHoursDay } from "../../src/types";
 const DAYS_KEYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 export default function MerchantMyShop() {
+  const router = useRouter();
   const { user } = useAuthRole();
   const [merchant, setMerchant] = useState<Merchant | null>(null);
   const [loading, setLoading] = useState(true);
@@ -75,10 +77,6 @@ export default function MerchantMyShop() {
       let m: Merchant | null = null;
       if (user?.uid) {
         m = await fetchMerchantByOwner(user.uid);
-      }
-      if (!m) {
-        const all = await fetchMerchants({ limitCount: 1 });
-        if (all.length > 0) m = all[0];
       }
 
       if (m) {
@@ -301,30 +299,33 @@ export default function MerchantMyShop() {
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.previewScrollContent}
           >
-            <Image
-              source={{
-                uri:
-                  merchant?.coverPhotoUrl ||
-                  merchant?.img ||
-                  "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=400&h=200&fit=crop&auto=format",
-              }}
-              style={styles.previewCoverImage}
-              resizeMode="cover"
-            />
+            {merchant?.coverPhotoUrl || merchant?.img ? (
+              <Image
+                source={{
+                  uri: merchant?.coverPhotoUrl || merchant?.img,
+                }}
+                style={styles.previewCoverImage}
+                resizeMode="cover"
+              />
+            ) : (
+              <View style={styles.previewCoverPlaceholder}>
+                <Text style={styles.previewCoverPlaceholderText}>No cover photo</Text>
+              </View>
+            )}
             <View style={styles.previewCard}>
               <Text style={styles.previewMerchantName}>
-                {merchant?.name || "Brew & Co."}
+                {merchant?.name || "Untitled Business"}
               </Text>
               <View style={styles.previewMetaRow}>
                 <View style={styles.previewTagPill}>
                   <Text style={styles.previewTagText}>
-                    {merchant?.category || "Coffee"}
+                    {merchant?.category || "Uncategorized"}
                   </Text>
                 </View>
                 <View style={styles.ratingBadge}>
                   <StarIcon size={14} color={Colors.amber[500]} />
                   <Text style={styles.previewRatingText}>
-                    {merchant?.rating || 4.8} ({merchant?.reviews || 312})
+                    {merchant?.rating ?? 0} ({merchant?.reviews ?? 0})
                   </Text>
                 </View>
               </View>
@@ -333,19 +334,19 @@ export default function MerchantMyShop() {
                 <View style={styles.previewDetailRow}>
                   <ClockIcon size={16} color={Colors.slate[600]} />
                   <Text style={styles.previewDetailItem}>
-                    {merchant?.hours || "7:00 AM – 9:00 PM"}
+                    {merchant?.hours || "Hours not set"}
                   </Text>
                 </View>
                 <View style={styles.previewDetailRow}>
                   <LocationIcon size={16} color={Colors.slate[600]} />
                   <Text style={styles.previewDetailItem}>
-                    {merchant?.address || "12 Market St, Downtown"}
+                    {merchant?.address || "Address not set"}
                   </Text>
                 </View>
                 <View style={styles.previewDetailRow}>
                   <TagIcon size={16} color={Colors.slate[600]} />
                   <Text style={styles.previewDetailItem}>
-                    {merchant?.description || "Specialty single-origin coffee"}
+                    {merchant?.description || "No description"}
                   </Text>
                 </View>
               </View>
@@ -356,13 +357,7 @@ export default function MerchantMyShop() {
     );
   }
 
-  const galleryImages =
-    merchant?.photos && merchant.photos.length > 0
-      ? merchant.photos
-      : [
-          "https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=80&h=80&fit=crop",
-          "https://images.unsplash.com/photo-1461023058943-07fcbe16d735?w=80&h=80&fit=crop",
-        ];
+  const galleryImages = merchant?.photos || [];
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
@@ -394,25 +389,42 @@ export default function MerchantMyShop() {
             />
           }
         >
-          {loading && !merchant ? (
+          {loading ? (
             <View style={{ paddingVertical: 48, alignItems: "center" }}>
               <ActivityIndicator size="large" color={Colors.teal[600]} />
+            </View>
+          ) : !merchant ? (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyStateTitle}>No business listing yet</Text>
+              <Text style={styles.emptyStateSubtitle}>
+                Complete your merchant setup to create your listing and manage it here.
+              </Text>
+              <TouchableOpacity
+                style={styles.emptyStateButton}
+                onPress={() => router.push("/(auth)/merchant-setup")}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.emptyStateButtonText}>Set Up My Business</Text>
+              </TouchableOpacity>
             </View>
           ) : (
             <>
               {/* Cover Photo & Gallery */}
               <View style={styles.card}>
                 <View style={styles.coverPhotoContainer}>
-                  <Image
-                    source={{
-                      uri:
-                        merchant?.coverPhotoUrl ||
-                        merchant?.img ||
-                        "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=400&h=140&fit=crop&auto=format",
-                    }}
-                    style={styles.coverPhotoImage}
-                    resizeMode="cover"
-                  />
+                  {merchant?.coverPhotoUrl || merchant?.img ? (
+                    <Image
+                      source={{
+                        uri: merchant?.coverPhotoUrl || merchant?.img,
+                      }}
+                      style={styles.coverPhotoImage}
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <View style={styles.coverPlaceholder}>
+                      <Text style={styles.coverPlaceholderText}>No cover photo</Text>
+                    </View>
+                  )}
                   <TouchableOpacity
                     style={styles.changeCoverButton}
                     onPress={handleChangeCover}
@@ -451,29 +463,27 @@ export default function MerchantMyShop() {
                 {
                   label: "Business Name",
                   field: "Name" as const,
-                  value: merchant?.name || "Brew & Co.",
+                  value: merchant?.name || "",
                 },
                 {
                   label: "Category",
                   field: "Category" as const,
-                  value: merchant?.category || "Coffee",
+                  value: merchant?.category || "",
                 },
                 {
                   label: "Description",
                   field: "Description" as const,
-                  value:
-                    merchant?.description ||
-                    "Specialty coffee in the heart of downtown.",
+                  value: merchant?.description || "",
                 },
                 {
                   label: "Contact",
                   field: "Contact" as const,
-                  value: merchant?.contact || "+1 (415) 555-0192",
+                  value: merchant?.contact || "",
                 },
                 {
                   label: "Address",
                   field: "Address" as const,
-                  value: merchant?.address || "12 Market St, Downtown SF",
+                  value: merchant?.address || "",
                 },
               ].map((f) => (
                 <View key={f.label} style={styles.fieldCard}>
@@ -786,6 +796,66 @@ const styles = StyleSheet.create({
   coverPhotoImage: {
     width: "100%",
     height: "100%",
+  },
+  coverPlaceholder: {
+    width: "100%",
+    height: "100%",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Colors.slate[100],
+  },
+  coverPlaceholderText: {
+    fontSize: 13,
+    color: Colors.slate[400],
+    fontWeight: "500",
+  },
+  previewCoverPlaceholder: {
+    width: "100%",
+    height: 180,
+    borderRadius: Radius["2xl"],
+    backgroundColor: Colors.slate[100],
+    marginBottom: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  previewCoverPlaceholderText: {
+    fontSize: 13,
+    color: Colors.slate[400],
+    fontWeight: "500",
+  },
+  emptyState: {
+    backgroundColor: Colors.white,
+    borderRadius: Radius["2xl"],
+    borderWidth: 1,
+    borderColor: Colors.slate[100],
+    padding: 32,
+    alignItems: "center",
+    gap: 8,
+    ...Shadows.md,
+  },
+  emptyStateTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: Colors.slate[800],
+    textAlign: "center",
+  },
+  emptyStateSubtitle: {
+    fontSize: 13,
+    color: Colors.slate[500],
+    textAlign: "center",
+    lineHeight: 19,
+    marginBottom: 12,
+  },
+  emptyStateButton: {
+    backgroundColor: Colors.teal[700],
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: Radius.xl,
+  },
+  emptyStateButtonText: {
+    color: Colors.white,
+    fontSize: 14,
+    fontWeight: "700",
   },
   changeCoverButton: {
     position: "absolute",

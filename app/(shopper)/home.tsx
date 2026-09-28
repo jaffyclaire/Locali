@@ -200,13 +200,13 @@ export default function HomeScreen() {
                       onPress={() =>
                         setSelectedMerchant({
                           ...sponsoredCards[0],
-                          lat: 37.7749,
-                          lng: -122.4194,
-                          latitude: 37.7749,
-                          longitude: -122.4194,
+                          lat: (sponsoredCards[0] as any).latitude ?? 37.7749,
+                          lng: (sponsoredCards[0] as any).longitude ?? -122.4194,
+                          latitude: (sponsoredCards[0] as any).latitude,
+                          longitude: (sponsoredCards[0] as any).longitude,
                           type: "sponsored" as const,
-                          hours: (sponsoredCards[0] as any).hours || "11:00 AM – 10:00 PM",
-                          address: (sponsoredCards[0] as any).address || "55 Noodle St, Downtown SF",
+                          hours: (sponsoredCards[0] as any).hours || "",
+                          address: (sponsoredCards[0] as any).address || "",
                         } as unknown as MapMerchant)
                       }
                     />
@@ -277,13 +277,13 @@ export default function HomeScreen() {
                           onPress={() =>
                             setSelectedMerchant({
                               ...sponsoredCards[1],
-                              lat: 37.7749,
-                              lng: -122.4194,
-                              latitude: 37.7749,
-                              longitude: -122.4194,
+                              lat: (sponsoredCards[1] as any).latitude ?? 37.7749,
+                              lng: (sponsoredCards[1] as any).longitude ?? -122.4194,
+                              latitude: (sponsoredCards[1] as any).latitude,
+                              longitude: (sponsoredCards[1] as any).longitude,
                               type: "sponsored" as const,
-                              hours: (sponsoredCards[1] as any).hours || "7:00 AM – 6:00 PM",
-                              address: (sponsoredCards[1] as any).address || "9 Flour Ave, Downtown SF",
+                              hours: (sponsoredCards[1] as any).hours || "",
+                              address: (sponsoredCards[1] as any).address || "",
                             } as unknown as MapMerchant)
                           }
                         />

@@ -45,22 +45,19 @@ export const formatFirestoreMerchant = (
   id: string,
   data: DocumentData
 ): MapMerchant => {
-  const lat = typeof data.latitude === "number" ? data.latitude : 37.7749;
-  const lng = typeof data.longitude === "number" ? data.longitude : -122.4194;
-  const rating = typeof data.rating === "number" ? data.rating : 4.5;
+  const lat = typeof data.latitude === "number" ? data.latitude : 0;
+  const lng = typeof data.longitude === "number" ? data.longitude : 0;
+  const rating = typeof data.rating === "number" ? data.rating : 0;
   const reviews =
     typeof data.ratingCount === "number"
       ? data.ratingCount
       : typeof data.reviews === "number"
       ? data.reviews
       : 0;
-  const coverUrl =
-    data.coverPhotoUrl ||
-    data.img ||
-    "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=400&h=200&fit=crop&auto=format";
+  const coverUrl = data.coverPhotoUrl || data.img || "";
 
   // Derive weekly hours display string if hours is a map
-  let hoursDisplay = data.hours || "9:00 AM – 6:00 PM";
+  let hoursDisplay = data.hours || "";
   if (data.weeklyHours && typeof data.weeklyHours === "object") {
     const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
     const today = days[new Date().getDay() === 0 ? 6 : new Date().getDay() - 1];
@@ -82,10 +79,10 @@ export const formatFirestoreMerchant = (
   return {
     id,
     ownerId: data.ownerId || "",
-    name: data.name || "Local Business",
-    category: data.category || "General",
-    tag: data.tag || data.category || "Local",
-    distance: data.distance || "0.5 mi",
+    name: data.name || "",
+    category: data.category || "",
+    tag: data.tag || data.category || "",
+    distance: data.distance || "",
     rating,
     reviews,
     isOpen: data.isOpen !== undefined ? Boolean(data.isOpen) : true,
@@ -93,7 +90,7 @@ export const formatFirestoreMerchant = (
     hours: hoursDisplay,
     img: coverUrl,
     coverPhotoUrl: coverUrl,
-    address: data.address || "12 Market St, Downtown",
+    address: data.address || "",
     description: data.description || "",
     contact: data.contact || "",
     lat,
