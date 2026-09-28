@@ -8,7 +8,7 @@ import {
   StyleSheet,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { MapMerchant, SponsoredCardItem } from "../../src/types";
+import { MapMerchant, SponsoredCardItem, UserLocation } from "../../src/types";
 import { Colors, Radius, Shadows } from "../../src/constants/theme";
 import {
   LocationIcon,
@@ -18,14 +18,21 @@ import {
 import { HeroAdCarousel } from "../../src/components/common/HeroAdCarousel";
 import { SponsoredCard } from "../../src/components/common/SponsoredCard";
 import { MerchantSheet } from "../../src/components/common/MerchantSheet";
+import { LocationPickerModal } from "../../src/components/common/LocationPickerModal";
 import { fetchMerchants, fetchSponsoredCards } from "../../src/services/firestoreService";
+import { useAuthRole } from "../../src/context/AuthRoleContext";
 
 export default function HomeScreen() {
+  const { user, updateUser } = useAuthRole();
   const [activeFilter, setActiveFilter] = useState("Nearby");
   const [selectedMerchant, setSelectedMerchant] = useState<MapMerchant | null>(null);
   const [merchants, setMerchants] = useState<MapMerchant[]>([]);
   const [sponsoredCards, setSponsoredCards] = useState<SponsoredCardItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [locationPickerVisible, setLocationPickerVisible] = useState(false);
+  const [userLocation, setUserLocation] = useState<UserLocation | null>(
+    user?.location || null
+  );
 
   useEffect(() => {
     const loadData = async () => {
@@ -54,6 +61,17 @@ export default function HomeScreen() {
       ? [...merchants].sort((a, b) => b.rating - a.rating)
       : merchants;
 
+  const handleSaveLocation = async (location: UserLocation) => {
+    setUserLocation(location);
+    setLocationPickerVisible(false);
+    try {
+      await updateUser({ location });
+      console.log("[HomeScreen] Location saved:", location.label, location.lat, location.lng);
+    } catch (err) {
+      console.warn("[HomeScreen] Failed to save location:", err);
+    }
+  };
+
   console.log("[HomeScreen] loading:", loading, "merchants:", merchants.length, "sponsoredCards:", sponsoredCards.length);
 
   return (
@@ -62,9 +80,15 @@ export default function HomeScreen() {
         {/* Top App Bar */}
         <View style={styles.topBar}>
           <View style={styles.topBarRow}>
-            <TouchableOpacity style={styles.locationSelector} activeOpacity={0.7}>
+            <TouchableOpacity
+              style={styles.locationSelector}
+              activeOpacity={0.7}
+              onPress={() => setLocationPickerVisible(true)}
+            >
               <LocationIcon size={16} color={Colors.teal[700]} />
-              <Text style={styles.locationText}>Downtown, SF</Text>
+              <Text style={styles.locationText}>
+                {userLocation?.label || "Choose location"}
+              </Text>
               <ChevronDownIcon size={14} color={Colors.slate[400]} />
             </TouchableOpacity>
 
@@ -237,6 +261,14 @@ export default function HomeScreen() {
           merchant={selectedMerchant}
           visible={!!selectedMerchant}
           onClose={() => setSelectedMerchant(null)}
+        />
+
+        {/* Location Picker Modal */}
+        <LocationPickerModal
+          visible={locationPickerVisible}
+          initialLocation={userLocation}
+          onSave={handleSaveLocation}
+          onClose={() => setLocationPickerVisible(false)}
         />
       </View>
     </SafeAreaView>

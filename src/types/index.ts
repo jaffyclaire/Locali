@@ -13,6 +13,12 @@ export interface UserNotificationPreferences {
   [key: string]: boolean | undefined;
 }
 
+export interface UserLocation {
+  label: string;
+  lat: number;
+  lng: number;
+}
+
 export interface UserProfile {
   uid: string;
   fullName: string;
@@ -24,6 +30,7 @@ export interface UserProfile {
   createdAt?: any;
   interests?: string[];
   notificationPreferences?: UserNotificationPreferences;
+  location?: UserLocation;
 }
 
 export interface OperatingHoursDay {

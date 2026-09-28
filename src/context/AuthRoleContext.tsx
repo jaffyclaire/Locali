@@ -112,6 +112,7 @@ export const AuthRoleProvider: React.FC<{ children: ReactNode }> = ({
                 merchantAlerts: true,
                 dealAlerts: false,
               },
+              location: data.location || undefined,
             });
           } else {
             // Profile document doesn't exist yet, populate from Auth User
