@@ -11,12 +11,13 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import MerchantMap from "../../src/components/MerchantMap";
+import MerchantMap, { MerchantMapHandle } from "../../src/components/MerchantMap";
 import { useAuthRole } from "../../src/context/AuthRoleContext";
 import { Colors, Radius, Shadows } from "../../src/constants/theme";
 import { PhotoUploadIcon, LocationIcon, CheckIcon } from "../../src/components/icons/AppIcons";
 import { fetchCategories, createMerchantDoc } from "../../src/services/firestoreService";
 import { pickImageFromGallery, uploadImageAsync } from "../../src/services/storageService";
+import { geocodeAddress, reverseGeocode } from "../../src/services/geocodingService";
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -68,6 +69,10 @@ export default function MerchantSetupScreen() {
     latitude: 37.7749,
     longitude: -122.4194,
   });
+  const [addressError, setAddressError] = useState<string | null>(null);
+  const addressInputRef = React.useRef<TextInput>(null);
+  const debounceTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mapRef = React.useRef<MerchantMapHandle>(null);
 
   // Step 3 state
   const [activeDays, setActiveDays] = useState(["Mon", "Tue", "Wed", "Thu", "Fri"]);
@@ -80,6 +85,38 @@ export default function MerchantSetupScreen() {
     setActiveDays((prev) =>
       prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d]
     );
+  };
+
+  // Debounced forward geocode: typing address -> move map + pin
+  const handleAddressChange = (text: string) => {
+    setAddress(text);
+    setAddressError(null);
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    if (text.trim().length < 3) return;
+    debounceTimerRef.current = setTimeout(async () => {
+      const result = await geocodeAddress(text);
+      if (result) {
+        setPinCoord({ latitude: result.lat, longitude: result.lng });
+        mapRef.current?.animateToRegion(
+          { latitude: result.lat, longitude: result.lng, latitudeDelta: 0.01, longitudeDelta: 0.01 },
+          500
+        );
+      } else {
+        setAddressError("Address not found — keep typing or tap the map");
+      }
+    }, 800);
+  };
+
+  // Reverse geocode: moving/dragging pin -> update address field
+  const handlePinChange = async (coordinate: { latitude: number; longitude: number }) => {
+    setPinCoord(coordinate);
+    setAddressError(null);
+    const result = await reverseGeocode(coordinate.latitude, coordinate.longitude);
+    if (result) {
+      setAddress(result.label);
+    } else {
+      setAddressError("Could not reverse-geocode — pin kept");
+    }
   };
 
   const handlePickCover = async () => {
@@ -272,18 +309,23 @@ export default function MerchantSetupScreen() {
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Business Address</Text>
                 <TextInput
+                  ref={addressInputRef}
                   style={styles.input}
                   value={address}
-                  onChangeText={setAddress}
+                  onChangeText={handleAddressChange}
                   placeholder="12 Market St, Downtown, SF"
                   placeholderTextColor={Colors.slate[400]}
                 />
+                {addressError && (
+                  <Text style={styles.addressErrorText}>{addressError}</Text>
+                )}
               </View>
 
               <View style={styles.mapPinSection}>
                 <Text style={styles.inputLabel}>Pin your exact location</Text>
                 <View style={styles.mapWrapper}>
                   <MerchantMap
+                    ref={mapRef}
                     style={styles.map}
                     initialRegion={{
                       latitude: pinCoord.latitude,
@@ -291,13 +333,13 @@ export default function MerchantSetupScreen() {
                       latitudeDelta: 0.01,
                       longitudeDelta: 0.01,
                     }}
-                    onPress={(coordinate) => setPinCoord(coordinate)}
+                    onPress={handlePinChange}
                     markers={[
                       {
                         id: "merchant-pin",
                         coordinate: pinCoord,
                         draggable: true,
-                        onDragEnd: (coordinate) => setPinCoord(coordinate),
+                        onDragEnd: handlePinChange,
                         pinColor: Colors.teal[700],
                         pinSize: 32,
                         children: (
@@ -315,7 +357,7 @@ export default function MerchantSetupScreen() {
                   </View>
                 </View>
                 <Text style={styles.mapFootnote}>
-                  GPS coordinates saved via PostGIS
+                  Location saved to your listing
                 </Text>
               </View>
             </View>
@@ -619,6 +661,12 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "600",
     color: Colors.slate[600],
+  },
+  addressErrorText: {
+    fontSize: 11,
+    color: Colors.rose[600],
+    marginTop: 4,
+    fontWeight: "500",
   },
   mapFootnote: {
     fontSize: 11,
