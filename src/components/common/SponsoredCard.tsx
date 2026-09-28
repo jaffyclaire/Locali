@@ -36,12 +36,14 @@ export const SponsoredCard: React.FC<SponsoredCardProps> = ({ card, onPress }) =
         <View style={styles.metaRow}>
           <View style={styles.ratingBox}>
             <StarIcon size={12} color={Colors.amber[500]} />
-            <Text style={styles.metaText}>{card.rating}</Text>
+            <Text style={styles.metaText}>
+              {card.rating > 0 ? card.rating : "—"}
+            </Text>
           </View>
           <Text style={styles.dotSeparator}>·</Text>
-          <Text style={styles.metaText}>{card.distance}</Text>
+          <Text style={styles.metaText}>{card.distance || "—"}</Text>
           <Text style={styles.dotSeparator}>·</Text>
-          <Text style={styles.metaText}>{card.category}</Text>
+          <Text style={styles.metaText}>{card.category || "—"}</Text>
         </View>
 
         <View style={styles.footerRow}>

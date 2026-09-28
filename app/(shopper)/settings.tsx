@@ -49,7 +49,10 @@ export default function SettingsScreen() {
     });
   }, [user?.uid]);
 
-  // Request permission and register push token
+  // Request permission and register push token.
+  // Wrapped in try/catch so that notification toggles still save to Firestore
+  // even when getExpoPushTokenAsync throws (e.g. remote push unavailable in
+  // Expo Go on Android SDK 53+).
   const registerPushToken = useCallback(async () => {
     try {
       const { status } = await Notifications.requestPermissionsAsync();
@@ -67,7 +70,7 @@ export default function SettingsScreen() {
       setPushToken(token.data);
       console.log("[Settings] Push token registered:", token.data);
     } catch (err) {
-      console.warn("[Settings] Failed to register push token:", err);
+      console.warn("[Settings] Push token registration failed (toggles still saved):", err);
     }
   }, []);
 

@@ -151,7 +151,7 @@ export default function MerchantDashboard() {
           <View style={styles.headerLeft}>
             <Text style={styles.headerTitle}>Dashboard</Text>
             <Text style={styles.headerSubtitle}>
-              {merchant ? `${merchant.name} · ${merchant.category}` : "Brew & Co. · Downtown SF"}
+              {merchant ? `${merchant.name} · ${merchant.category}` : "No business"}
             </Text>
           </View>
           <View style={styles.headerRight}>
@@ -303,10 +303,10 @@ export default function MerchantDashboard() {
                   <View style={styles.listingTitleRow}>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.listingName}>
-                        {merchant?.name || "Brew & Co."}
+                        {merchant?.name || "No business"}
                       </Text>
                       <Text style={styles.listingSub} numberOfLines={1}>
-                        {merchant ? `${merchant.category} · ${merchant.address}` : "Coffee · 12 Market St, Downtown"}
+                        {merchant ? `${merchant.category} · ${merchant.address}` : "Complete setup to see your listing"}
                       </Text>
                     </View>
                     <TouchableOpacity

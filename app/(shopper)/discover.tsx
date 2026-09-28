@@ -388,10 +388,14 @@ export default function DiscoverScreen() {
                         </View>
                         <View style={styles.ratingBadge}>
                           <StarIcon size={12} color={Colors.amber[500]} />
-                          <Text style={styles.ratingText}>{m.rating}</Text>
+                          <Text style={styles.ratingText}>
+                            {m.rating > 0 ? m.rating : "—"}
+                          </Text>
                         </View>
                         <Text style={styles.dotSeparator}>·</Text>
-                        <Text style={styles.hoursText}>{m.hours}</Text>
+                        <Text style={styles.hoursText}>
+                          {m.hours || "Hours not set"}
+                        </Text>
                       </View>
                     </View>
                   </View>
@@ -526,7 +530,9 @@ export default function DiscoverScreen() {
                           </Text>
                           <View style={styles.ratingBadge}>
                             <StarIcon size={12} color={Colors.amber[500]} />
-                            <Text style={styles.ratingText}>{item.rating}</Text>
+                            <Text style={styles.ratingText}>
+                              {item.rating > 0 ? item.rating : "—"}
+                            </Text>
                           </View>
                         </View>
                       </View>

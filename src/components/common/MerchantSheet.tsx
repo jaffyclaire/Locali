@@ -129,7 +129,9 @@ export const MerchantSheet: React.FC<MerchantSheetProps> = ({
               <View style={styles.ratingBadge}>
                 <StarIcon size={12} color={Colors.amber[500]} />
                 <Text style={styles.ratingText}>
-                  {merchant.rating} ({merchant.reviews})
+                  {merchant.rating > 0
+                    ? `${merchant.rating} (${merchant.reviews})`
+                    : "No rating"}
                 </Text>
               </View>
               <Text style={styles.distanceText}>{merchant.distance}</Text>
@@ -158,7 +160,7 @@ export const MerchantSheet: React.FC<MerchantSheetProps> = ({
                   </Text>
                 </View>
                 <Text style={styles.verificationSub}>
-                  Confirmed at 8:42 AM · Hours: {merchant.hours}
+                  Confirmed at 8:42 AM · Hours: {merchant.hours || "Not set"}
                 </Text>
               </View>
             )}

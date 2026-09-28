@@ -251,7 +251,9 @@ export default function HomeScreen() {
                         <View style={styles.cardMetaRow}>
                           <View style={styles.ratingRow}>
                             <StarIcon size={12} color={Colors.amber[500]} />
-                            <Text style={styles.metaText}>{m.rating}</Text>
+                            <Text style={styles.metaText}>
+                            {m.rating > 0 ? m.rating : "—"}
+                          </Text>
                           </View>
                           <Text style={styles.dotSeparator}>·</Text>
                           <Text style={styles.metaText}>{m.distance}</Text>
