@@ -1,4 +1,5 @@
 import * as ImagePicker from "expo-image-picker";
+import { Platform } from "react-native";
 
 // ============================================================================
 // Cloudinary Configuration
@@ -84,12 +85,19 @@ export const uploadImageAsync = async (
     // Create FormData for Cloudinary unsigned upload
     const formData = new FormData();
 
-    // Append the file — React Native's FormData handles blob/file objects
-    formData.append("file", {
-      uri,
-      type: "image/jpeg",
-      name: `${storagePath.replace(/\//g, "_")}.jpg`,
-    } as any);
+    if (Platform.OS === "web") {
+      // On web, fetch the URI and convert to a Blob
+      const response = await fetch(uri);
+      const blob = await response.blob();
+      formData.append("file", blob, `${storagePath.replace(/\//g, "_")}.jpg`);
+    } else {
+      // On native, use the { uri, name, type } object form
+      formData.append("file", {
+        uri,
+        type: "image/jpeg",
+        name: `${storagePath.replace(/\//g, "_")}.jpg`,
+      } as any);
+    }
 
     // Append the unsigned upload preset
     formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
@@ -98,13 +106,18 @@ export const uploadImageAsync = async (
     const folder = storagePath.split("/")[0] || "locali";
     formData.append("folder", folder);
 
-    // Make the upload request
+    // Log FormData keys to confirm upload_preset is present
+    const formDataKeys: string[] = [];
+    // @ts-ignore — FormData.entries() is available in React Native
+    for (const pair of formData.entries()) {
+      formDataKeys.push(pair[0]);
+    }
+    console.log("[storageService] FormData keys:", formDataKeys);
+
+    // Make the upload request — let fetch set the Content-Type boundary automatically
     const response = await fetch(CLOUDINARY_UPLOAD_URL, {
       method: "POST",
       body: formData,
-      headers: {
-        "Content-Type": "multipart/form-data",
-      },
     });
 
     const data = await response.json();
