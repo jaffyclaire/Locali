@@ -7,6 +7,9 @@ import { Platform } from "react-native";
  * timestamp-based guard. On native we send a User-Agent header
  * (required by Nominatim policy); browsers forbid setting User-Agent,
  * so we skip it on web.
+ *
+ * NOTE: If this app scales, move to a paid geocoding provider (Google,
+ * Mapbox, etc.) for higher rate limits and better reliability.
  */
 
 const NOMINATIM_BASE = "https://nominatim.openstreetmap.org";
@@ -80,30 +83,29 @@ export const reverseGeocode = async (
 };
 
 /**
- * Forward geocode an address string into coordinates.
+ * Forward geocode an address string into up to 5 results.
  */
 export const geocodeAddress = async (
   address: string
-): Promise<GeocodeResult | null> => {
+): Promise<GeocodeResult[]> => {
   try {
-    const url = `${NOMINATIM_BASE}/search?format=json&q=${encodeURIComponent(
+    const url = `${NOMINATIM_BASE}/search?format=json&limit=5&q=${encodeURIComponent(
       address
-    )}&limit=1`;
+    )}`;
     const response = await throttledFetch(url);
     const data = await response.json();
-    if (data && data.length > 0) {
-      const result = data[0];
-      return {
-        lat: parseFloat(result.lat),
-        lng: parseFloat(result.lon),
-        label: shortLabel(result.display_name),
-        displayName: result.display_name,
-      };
+    if (data && Array.isArray(data) && data.length > 0) {
+      return data.map((item: any) => ({
+        lat: parseFloat(item.lat),
+        lng: parseFloat(item.lon),
+        label: shortLabel(item.display_name),
+        displayName: item.display_name,
+      }));
     }
-    return null;
+    return [];
   } catch (err) {
     console.warn("[geocodingService] geocodeAddress error:", err);
-    return null;
+    return [];
   }
 };
 

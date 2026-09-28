@@ -55,6 +55,18 @@ export interface MerchantMapProps {
   zoomEnabled?: boolean;
   pitchEnabled?: boolean;
   rotateEnabled?: boolean;
+  /**
+   * Controlled position for the primary marker. When provided, the map will
+   * re-center on this coordinate and the marker will follow it.
+   */
+  position?: MapCoordinate;
+  /**
+   * Fired when the user taps the map or finishes dragging the pin.
+   * Use this to implement two-way address/pin binding.
+   */
+  onPinChange?: (coordinate: MapCoordinate) => void;
+  /** Fired when the map finishes loading. */
+  onMapReady?: () => void;
 }
 
 /**

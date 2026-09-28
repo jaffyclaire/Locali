@@ -29,6 +29,9 @@ const MerchantMap = forwardRef<MerchantMapHandle, MerchantMapProps>(
       zoomEnabled = true,
       pitchEnabled = true,
       rotateEnabled = true,
+      position,
+      onPinChange,
+      onMapReady,
     },
     ref
   ) => {
@@ -52,6 +55,21 @@ const MerchantMap = forwardRef<MerchantMapHandle, MerchantMapProps>(
       []
     );
 
+    // When a controlled position changes, re-center the map on it.
+    React.useEffect(() => {
+      if (position) {
+        mapRef.current?.animateToRegion(
+          {
+            latitude: position.latitude,
+            longitude: position.longitude,
+            latitudeDelta: initialRegion.latitudeDelta ?? DEFAULT_DELTA,
+            longitudeDelta: initialRegion.longitudeDelta ?? DEFAULT_DELTA,
+          },
+          300
+        );
+      }
+    }, [position?.latitude, position?.longitude]);
+
     return (
       <MapView
         ref={mapRef}
@@ -64,6 +82,7 @@ const MerchantMap = forwardRef<MerchantMapHandle, MerchantMapProps>(
         }}
         onMapReady={() => {
           console.log("[MerchantMap.native] onMapReady fired");
+          onMapReady?.();
         }}
         onPress={
           onPress

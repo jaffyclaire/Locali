@@ -144,6 +144,9 @@ const MerchantMap = forwardRef<MerchantMapHandle, MerchantMapProps>(
       zoomEnabled = true,
       pitchEnabled = true,
       rotateEnabled = true,
+      position,
+      onPinChange,
+      onMapReady,
     },
     ref
   ) => {

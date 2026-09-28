@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   ScrollView,
   StyleSheet,
+  Modal,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -15,11 +16,14 @@ import {
   LocationIcon,
   ChevronDownIcon,
   StarIcon,
+  CloseIcon,
+  CheckIcon,
 } from "../../src/components/icons/AppIcons";
 import { HeroAdCarousel } from "../../src/components/common/HeroAdCarousel";
 import { SponsoredCard } from "../../src/components/common/SponsoredCard";
 import { MerchantSheet } from "../../src/components/common/MerchantSheet";
-import { LocationPickerModal } from "../../src/components/common/LocationPickerModal";
+import { LocationPicker } from "../../src/components/common/LocationPicker";
+import { AddressPinState } from "../../src/hooks/useAddressPin";
 import { fetchMerchants, fetchSponsoredCards } from "../../src/services/firestoreService";
 import { haversineDistanceKm, isMerchantOpenNow } from "../../src/services/geocodingService";
 import { useAuthRole } from "../../src/context/AuthRoleContext";
@@ -36,6 +40,8 @@ export default function HomeScreen() {
   const [userLocation, setUserLocation] = useState<UserLocation | null>(
     user?.location || null
   );
+  // Working copy for the location picker modal
+  const [pickerState, setPickerState] = useState<AddressPinState | null>(null);
 
   useEffect(() => {
     const loadData = async () => {
@@ -87,7 +93,22 @@ export default function HomeScreen() {
 
   const filteredMerchants = getFilteredMerchants();
 
-  const handleSaveLocation = async (location: UserLocation) => {
+  const handleOpenPicker = () => {
+    setPickerState(
+      userLocation
+        ? { label: userLocation.label, lat: userLocation.lat, lng: userLocation.lng }
+        : null
+    );
+    setLocationPickerVisible(true);
+  };
+
+  const handleConfirmLocation = async () => {
+    if (!pickerState) return;
+    const location: UserLocation = {
+      label: pickerState.label,
+      lat: pickerState.lat,
+      lng: pickerState.lng,
+    };
     setUserLocation(location);
     setLocationPickerVisible(false);
     try {
@@ -109,7 +130,7 @@ export default function HomeScreen() {
             <TouchableOpacity
               style={styles.locationSelector}
               activeOpacity={0.7}
-              onPress={() => setLocationPickerVisible(true)}
+              onPress={handleOpenPicker}
             >
               <LocationIcon size={16} color={Colors.teal[700]} />
               <Text style={styles.locationText}>
@@ -185,7 +206,9 @@ export default function HomeScreen() {
             {filteredMerchants.length === 0 ? (
               <View style={styles.emptyContainer}>
                 <Text style={styles.emptyText}>
-                  {activeFilter === "Budget"
+                  {!userLocation
+                    ? "Choose a location to see nearby merchants"
+                    : activeFilter === "Budget"
                     ? "No price data available yet"
                     : "No merchants found"}
                 </Text>
@@ -308,12 +331,46 @@ export default function HomeScreen() {
         />
 
         {/* Location Picker Modal */}
-        <LocationPickerModal
-          visible={locationPickerVisible}
-          initialLocation={userLocation}
-          onSave={handleSaveLocation}
-          onClose={() => setLocationPickerVisible(false)}
-        />
+        {locationPickerVisible && (
+          <Modal
+            visible={locationPickerVisible}
+            animationType="slide"
+            presentationStyle="pageSheet"
+            onRequestClose={() => setLocationPickerVisible(false)}
+          >
+            <View style={styles.pickerModalContainer}>
+              <View style={styles.pickerModalHeader}>
+                <TouchableOpacity
+                  onPress={() => setLocationPickerVisible(false)}
+                  style={styles.pickerModalHeaderButton}
+                >
+                  <CloseIcon size={20} color={Colors.slate[600]} />
+                </TouchableOpacity>
+                <Text style={styles.pickerModalTitle}>Choose Location</Text>
+                <TouchableOpacity
+                  onPress={handleConfirmLocation}
+                  style={styles.pickerModalHeaderButton}
+                >
+                  <CheckIcon size={20} color={Colors.teal[700]} />
+                </TouchableOpacity>
+              </View>
+              <LocationPicker
+                initial={pickerState}
+                onChange={setPickerState}
+                mapHeight={280}
+              />
+              <View style={styles.pickerModalFooter}>
+                <TouchableOpacity
+                  style={styles.pickerConfirmButton}
+                  onPress={handleConfirmLocation}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.pickerConfirmButtonText}>Confirm Location</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </Modal>
+        )}
       </View>
     </SafeAreaView>
   );
@@ -508,5 +565,43 @@ const styles = StyleSheet.create({
     color: Colors.teal[700],
     fontSize: 11,
     fontWeight: "600",
+  },
+  pickerModalContainer: {
+    flex: 1,
+    backgroundColor: Colors.white,
+  },
+  pickerModalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.slate[100],
+  },
+  pickerModalHeaderButton: {
+    padding: 8,
+  },
+  pickerModalTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: Colors.slate[900],
+  },
+  pickerModalFooter: {
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: Colors.slate[100],
+  },
+  pickerConfirmButton: {
+    backgroundColor: Colors.teal[700],
+    borderRadius: Radius.xl,
+    paddingVertical: 14,
+    alignItems: "center",
+    ...Shadows.sm,
+  },
+  pickerConfirmButtonText: {
+    color: Colors.white,
+    fontSize: 14,
+    fontWeight: "700",
   },
 });
