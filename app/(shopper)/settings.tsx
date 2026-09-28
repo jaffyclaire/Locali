@@ -1,17 +1,32 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
   TouchableOpacity,
   ScrollView,
   StyleSheet,
+  Platform,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
+import * as Notifications from "expo-notifications";
 import { useAuthRole } from "../../src/context/AuthRoleContext";
 import { Colors, Radius, Shadows } from "../../src/constants/theme";
 import { ChevronRight } from "../../src/components/icons/AppIcons";
 import { ProfileCard } from "../../src/components/common/ProfileCard";
+import {
+  getUserNotificationPreferences,
+  updateNotificationPreferences,
+} from "../../src/services/firestoreService";
+
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowBanner: true,
+    shouldShowList: true,
+    shouldPlaySound: false,
+    shouldSetBadge: false,
+  }),
+});
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -20,6 +35,72 @@ export default function SettingsScreen() {
   const [proximityAlerts, setProximityAlerts] = useState(true);
   const [merchantAlerts, setMerchantAlerts] = useState(true);
   const [dealAlerts, setDealAlerts] = useState(false);
+  const [pushToken, setPushToken] = useState<string | null>(null);
+
+  // Load saved preferences from Firestore
+  useEffect(() => {
+    if (!user?.uid) return;
+    getUserNotificationPreferences(user.uid).then((prefs) => {
+      if (prefs) {
+        if (typeof prefs.proximityAlerts === "boolean") setProximityAlerts(prefs.proximityAlerts);
+        if (typeof prefs.merchantAlerts === "boolean") setMerchantAlerts(prefs.merchantAlerts);
+        if (typeof prefs.dealAlerts === "boolean") setDealAlerts(prefs.dealAlerts);
+      }
+    });
+  }, [user?.uid]);
+
+  // Request permission and register push token
+  const registerPushToken = useCallback(async () => {
+    try {
+      const { status } = await Notifications.requestPermissionsAsync();
+      if (status !== "granted") {
+        console.log("[Settings] Notification permission not granted:", status);
+        return;
+      }
+      if (Platform.OS === "android") {
+        await Notifications.setNotificationChannelAsync("default", {
+          name: "default",
+          importance: Notifications.AndroidImportance.DEFAULT,
+        });
+      }
+      const token = await Notifications.getExpoPushTokenAsync();
+      setPushToken(token.data);
+      console.log("[Settings] Push token registered:", token.data);
+    } catch (err) {
+      console.warn("[Settings] Failed to register push token:", err);
+    }
+  }, []);
+
+  const handleToggle = useCallback(
+    (key: "proximityAlerts" | "merchantAlerts" | "dealAlerts") => {
+      const newValue = !(
+        key === "proximityAlerts"
+          ? proximityAlerts
+          : key === "merchantAlerts"
+          ? merchantAlerts
+          : dealAlerts
+      );
+      if (key === "proximityAlerts") setProximityAlerts(newValue);
+      else if (key === "merchantAlerts") setMerchantAlerts(newValue);
+      else setDealAlerts(newValue);
+
+      // Persist to Firestore
+      if (user?.uid) {
+        const prefs = {
+          proximityAlerts: key === "proximityAlerts" ? newValue : proximityAlerts,
+          merchantAlerts: key === "merchantAlerts" ? newValue : merchantAlerts,
+          dealAlerts: key === "dealAlerts" ? newValue : dealAlerts,
+        };
+        updateNotificationPreferences(user.uid, prefs);
+      }
+
+      // Register push token when any toggle is turned on
+      if (newValue) {
+        registerPushToken();
+      }
+    },
+    [proximityAlerts, merchantAlerts, dealAlerts, user?.uid, registerPushToken]
+  );
 
   const handleSignOut = () => {
     signOut();
@@ -75,19 +156,19 @@ export default function SettingsScreen() {
                 label: "Proximity alerts",
                 sub: "Notify when saved shops are nearby",
                 value: proximityAlerts,
-                onToggle: () => setProximityAlerts((v) => !v),
+                onToggle: () => handleToggle("proximityAlerts"),
               },
               {
                 label: "Merchant alerts",
                 sub: "Updates from merchants you follow",
                 value: merchantAlerts,
-                onToggle: () => setMerchantAlerts((v) => !v),
+                onToggle: () => handleToggle("merchantAlerts"),
               },
               {
                 label: "Deals & promotions",
                 sub: "Flash sales and limited offers",
                 value: dealAlerts,
-                onToggle: () => setDealAlerts((v) => !v),
+                onToggle: () => handleToggle("dealAlerts"),
               },
             ].map((row, idx, arr) => (
               <View
