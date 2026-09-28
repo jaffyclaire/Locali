@@ -8,6 +8,7 @@ import {
   StyleSheet,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
 import { MapMerchant, SponsoredCardItem, UserLocation } from "../../src/types";
 import { Colors, Radius, Shadows } from "../../src/constants/theme";
 import {
@@ -23,6 +24,7 @@ import { fetchMerchants, fetchSponsoredCards } from "../../src/services/firestor
 import { useAuthRole } from "../../src/context/AuthRoleContext";
 
 export default function HomeScreen() {
+  const router = useRouter();
   const { user, updateUser } = useAuthRole();
   const [activeFilter, setActiveFilter] = useState("Nearby");
   const [selectedMerchant, setSelectedMerchant] = useState<MapMerchant | null>(null);
@@ -92,9 +94,21 @@ export default function HomeScreen() {
               <ChevronDownIcon size={14} color={Colors.slate[400]} />
             </TouchableOpacity>
 
-            <View style={styles.avatarCircle}>
-              <Text style={styles.avatarText}>JD</Text>
-            </View>
+            <TouchableOpacity
+              style={styles.avatarCircle}
+              activeOpacity={0.7}
+              onPress={() => router.push("/(shopper)/settings")}
+            >
+              {user?.avatarUrl ? (
+                <Image
+                  source={{ uri: user.avatarUrl }}
+                  style={styles.avatarImage}
+                  resizeMode="cover"
+                />
+              ) : (
+                <Text style={styles.avatarText}>{user?.initials || "U"}</Text>
+              )}
+            </TouchableOpacity>
           </View>
 
           {/* Horizontal filter chips */}
@@ -324,6 +338,12 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.teal[100],
     alignItems: "center",
     justifyContent: "center",
+    overflow: "hidden",
+  },
+  avatarImage: {
+    width: 32,
+    height: 32,
+    borderRadius: Radius.full,
   },
   avatarText: {
     fontSize: 12,
