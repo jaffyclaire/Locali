@@ -21,6 +21,7 @@ import { SponsoredCard } from "../../src/components/common/SponsoredCard";
 import { MerchantSheet } from "../../src/components/common/MerchantSheet";
 import { LocationPickerModal } from "../../src/components/common/LocationPickerModal";
 import { fetchMerchants, fetchSponsoredCards } from "../../src/services/firestoreService";
+import { haversineDistanceKm, isMerchantOpenNow } from "../../src/services/geocodingService";
 import { useAuthRole } from "../../src/context/AuthRoleContext";
 
 export default function HomeScreen() {
@@ -56,12 +57,35 @@ export default function HomeScreen() {
   }, []);
 
   const filters = ["Nearby", "Open Now", "Budget", "Top Rated"];
-  const filteredMerchants =
-    activeFilter === "Open Now"
-      ? merchants.filter((m) => m.isOpen)
-      : activeFilter === "Top Rated"
-      ? [...merchants].sort((a, b) => b.rating - a.rating)
-      : merchants;
+
+  const getFilteredMerchants = () => {
+    switch (activeFilter) {
+      case "Nearby": {
+        const refLat = userLocation?.lat ?? 37.7749;
+        const refLng = userLocation?.lng ?? -122.4194;
+        return [...merchants]
+          .filter((m) => m.latitude != null && m.longitude != null)
+          .sort((a, b) => {
+            const distA = haversineDistanceKm(refLat, refLng, a.latitude!, a.longitude!);
+            const distB = haversineDistanceKm(refLat, refLng, b.latitude!, b.longitude!);
+            return distA - distB;
+          });
+      }
+      case "Open Now":
+        return merchants.filter((m) =>
+          isMerchantOpenNow(m.weeklyHours, m.isOpen)
+        );
+      case "Budget":
+        // No priceLevel field exists on merchant documents yet
+        return [];
+      case "Top Rated":
+        return [...merchants].sort((a, b) => b.rating - a.rating);
+      default:
+        return merchants;
+    }
+  };
+
+  const filteredMerchants = getFilteredMerchants();
 
   const handleSaveLocation = async (location: UserLocation) => {
     setUserLocation(location);
@@ -160,7 +184,11 @@ export default function HomeScreen() {
             {(() => { console.log("[HomeScreen] RENDERING merchants:", filteredMerchants.map((m) => m.name)); return null; })()}
             {filteredMerchants.length === 0 ? (
               <View style={styles.emptyContainer}>
-                <Text style={styles.emptyText}>No merchants found</Text>
+                <Text style={styles.emptyText}>
+                  {activeFilter === "Budget"
+                    ? "No price data available yet"
+                    : "No merchants found"}
+                </Text>
               </View>
             ) : (
               <>

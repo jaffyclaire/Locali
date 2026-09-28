@@ -106,3 +106,69 @@ export const geocodeAddress = async (
     return null;
   }
 };
+
+// ============================================================================
+// Distance & open-now utilities for filter chips
+// ============================================================================
+
+/**
+ * Calculate distance in km between two coordinates using the Haversine formula.
+ */
+export const haversineDistanceKm = (
+  lat1: number,
+  lng1: number,
+  lat2: number,
+  lng2: number
+): number => {
+  const R = 6371; // Earth radius in km
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLng / 2) *
+      Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+};
+
+const DAY_MAP: Record<number, string> = {
+  0: "Sun",
+  1: "Mon",
+  2: "Tue",
+  3: "Wed",
+  4: "Thu",
+  5: "Fri",
+  6: "Sat",
+};
+
+/**
+ * Check if a merchant is open right now based on its weeklyHours.
+ * Returns true if the current time falls within the merchant's hours
+ * for the current day. Also respects the isOpen flag.
+ */
+export const isMerchantOpenNow = (
+  weeklyHours: Record<string, { openTime: string; closeTime: string; isClosed: boolean }> | undefined,
+  isOpen: boolean | undefined
+): boolean => {
+  if (isOpen === false) return false;
+  if (!weeklyHours) return true;
+
+  const now = new Date();
+  const dayName = DAY_MAP[now.getDay()];
+  const dayHours = weeklyHours[dayName];
+  if (!dayHours || dayHours.isClosed) return false;
+
+  const openTime = dayHours.openTime;
+  const closeTime = dayHours.closeTime;
+  if (!openTime || !closeTime) return false;
+
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+  const [openH, openM] = openTime.split(":").map(Number);
+  const [closeH, closeM] = closeTime.split(":").map(Number);
+  const openMinutes = openH * 60 + openM;
+  const closeMinutes = closeH * 60 + closeM;
+
+  return currentMinutes >= openMinutes && currentMinutes < closeMinutes;
+};
