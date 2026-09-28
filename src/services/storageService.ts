@@ -1,5 +1,6 @@
 import * as ImagePicker from "expo-image-picker";
 import { Platform } from "react-native";
+import * as FileSystem from "expo-file-system/legacy";
 
 // ============================================================================
 // Cloudinary Configuration
@@ -20,7 +21,7 @@ export const pickImageFromGallery = async (): Promise<string | null> => {
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ImagePicker.MediaType.Images,
       allowsEditing: true,
       aspect: [16, 9],
       quality: 0.8,
@@ -48,7 +49,7 @@ export const pickAvatarImage = async (): Promise<string | null> => {
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ImagePicker.MediaType.Images,
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.8,
@@ -67,9 +68,10 @@ export const pickAvatarImage = async (): Promise<string | null> => {
 /**
  * Upload local file URI to Cloudinary and return the hosted URL.
  *
- * Uses unsigned upload preset since there is no backend server to sign requests.
- * The upload preset is configured in Cloudinary dashboard with folder restrictions
- * and format limits for security.
+ * On native: uses expo-file-system/legacy uploadAsync with MULTIPART type,
+ * which properly handles React Native's { uri, name, type } file format.
+ *
+ * On web: uses fetch(uri) -> Blob -> FormData (no manual Content-Type header).
  *
  * @param uri - Local file URI from expo-image-picker
  * @param storagePath - Logical path used as the folder/name prefix in Cloudinary
@@ -79,59 +81,71 @@ export const uploadImageAsync = async (
   uri: string,
   storagePath: string
 ): Promise<string> => {
-  try {
-    console.log("[storageService] Starting Cloudinary upload for:", storagePath);
+  const folder = storagePath.split("/")[0] || "locali";
 
-    // Create FormData for Cloudinary unsigned upload
-    const formData = new FormData();
+  if (Platform.OS === "web") {
+    // Web path: fetch URI -> Blob -> FormData (no manual Content-Type header)
+    try {
+      console.log("[storageService] Starting Cloudinary upload (web) for:", storagePath);
 
-    if (Platform.OS === "web") {
-      // On web, fetch the URI and convert to a Blob
       const response = await fetch(uri);
       const blob = await response.blob();
+
+      const formData = new FormData();
       formData.append("file", blob, `${storagePath.replace(/\//g, "_")}.jpg`);
-    } else {
-      // On native, use the { uri, name, type } object form
-      formData.append("file", {
-        uri,
-        type: "image/jpeg",
-        name: `${storagePath.replace(/\//g, "_")}.jpg`,
-      } as any);
+      formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+      formData.append("folder", folder);
+
+      // Log FormData keys to confirm upload_preset is present
+      const formDataKeys: string[] = [];
+      // @ts-ignore — FormData.entries() is available
+      for (const pair of formData.entries()) {
+        formDataKeys.push(pair[0]);
+      }
+      console.log("[storageService] FormData keys:", formDataKeys);
+
+      const uploadResponse = await fetch(CLOUDINARY_UPLOAD_URL, {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await uploadResponse.json();
+
+      if (!uploadResponse.ok) {
+        console.error("[storageService] Cloudinary upload failed:", JSON.stringify(data));
+        throw new Error(data.error?.message || "Cloudinary upload failed");
+      }
+
+      console.log("[storageService] Cloudinary upload complete, HTTP status:", uploadResponse.status);
+      console.log("[storageService] secure_url:", data.secure_url);
+      return data.secure_url;
+    } catch (err) {
+      console.error("[storageService] uploadImageAsync error:", err);
+      throw err;
     }
+  } else {
+    // Native path: use expo-file-system/legacy uploadAsync with MULTIPART
+    try {
+      console.log("[storageService] Starting Cloudinary upload (native) for:", storagePath);
 
-    // Append the unsigned upload preset
-    formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+      const result = await FileSystem.uploadAsync(CLOUDINARY_UPLOAD_URL, uri, {
+        httpMethod: "POST",
+        uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+        fieldName: "file",
+        parameters: {
+          upload_preset: CLOUDINARY_UPLOAD_PRESET,
+          folder: folder,
+        },
+      });
 
-    // Append folder for organization (use the storagePath's first segment as folder)
-    const folder = storagePath.split("/")[0] || "locali";
-    formData.append("folder", folder);
+      console.log("[storageService] Cloudinary upload complete, HTTP status:", result.status);
 
-    // Log FormData keys to confirm upload_preset is present
-    const formDataKeys: string[] = [];
-    // @ts-ignore — FormData.entries() is available in React Native
-    for (const pair of formData.entries()) {
-      formDataKeys.push(pair[0]);
+      const data = JSON.parse(result.body);
+      console.log("[storageService] secure_url:", data.secure_url);
+      return data.secure_url;
+    } catch (err) {
+      console.error("[storageService] uploadImageAsync error:", err);
+      throw err;
     }
-    console.log("[storageService] FormData keys:", formDataKeys);
-
-    // Make the upload request — let fetch set the Content-Type boundary automatically
-    const response = await fetch(CLOUDINARY_UPLOAD_URL, {
-      method: "POST",
-      body: formData,
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      console.error("[storageService] Cloudinary upload failed:", data);
-      throw new Error(data.error?.message || "Cloudinary upload failed");
-    }
-
-    const downloadUrl = data.secure_url;
-    console.log("[storageService] Cloudinary upload complete:", downloadUrl);
-    return downloadUrl;
-  } catch (err) {
-    console.error("[storageService] uploadImageAsync error:", err);
-    throw err;
   }
 };
