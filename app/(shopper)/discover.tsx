@@ -841,7 +841,7 @@ const styles = StyleSheet.create({
   },
   inlineMapContainer: {
     width: "100%",
-    height: 100,
+    height: 120,
     borderRadius: Radius.lg,
     marginTop: 12,
     overflow: "hidden",

@@ -62,6 +62,9 @@ const MerchantMap = forwardRef<MerchantMapHandle, MerchantMapProps>(
           latitudeDelta: initialRegion.latitudeDelta ?? DEFAULT_DELTA,
           longitudeDelta: initialRegion.longitudeDelta ?? DEFAULT_DELTA,
         }}
+        onMapReady={() => {
+          console.log("[MerchantMap.native] onMapReady fired");
+        }}
         onPress={
           onPress
             ? (e) => onPress(e.nativeEvent.coordinate)

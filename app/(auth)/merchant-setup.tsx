@@ -625,7 +625,8 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   mapWrapper: {
-    height: 200,
+    flex: 1,
+    minHeight: 200,
     borderRadius: Radius["2xl"],
     overflow: "hidden",
     position: "relative",
