@@ -65,8 +65,11 @@ export const reverseGeocode = async (
 ): Promise<GeocodeResult | null> => {
   try {
     const url = `${NOMINATIM_BASE}/reverse?format=json&lat=${lat}&lon=${lng}`;
+    console.log("[geocodingService] reverseGeocode request URL:", url);
     const response = await throttledFetch(url);
+    console.log("[geocodingService] reverseGeocode response status:", response.status);
     const data = await response.json();
+    console.log("[geocodingService] reverseGeocode response body:", JSON.stringify(data).slice(0, 500));
     if (data && data.display_name) {
       return {
         lat,
@@ -75,6 +78,7 @@ export const reverseGeocode = async (
         displayName: data.display_name,
       };
     }
+    console.warn("[geocodingService] reverseGeocode: no display_name in response");
     return null;
   } catch (err) {
     console.warn("[geocodingService] reverseGeocode error:", err);
@@ -92,8 +96,11 @@ export const geocodeAddress = async (
     const url = `${NOMINATIM_BASE}/search?format=json&limit=5&q=${encodeURIComponent(
       address
     )}`;
+    console.log("[geocodingService] geocodeAddress request URL:", url);
     const response = await throttledFetch(url);
+    console.log("[geocodingService] geocodeAddress response status:", response.status);
     const data = await response.json();
+    console.log("[geocodingService] geocodeAddress response body:", JSON.stringify(data).slice(0, 500));
     if (data && Array.isArray(data) && data.length > 0) {
       return data.map((item: any) => ({
         lat: parseFloat(item.lat),

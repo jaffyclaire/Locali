@@ -61,10 +61,15 @@ export const useAddressPin = (options?: UseAddressPinOptions) => {
         setLabel(result.displayName);
         emitChange(result.displayName, latitude, longitude);
       } else {
-        setErrorMessage("Could not find address for this location.");
+        // Keep the pin coordinates — only the label lookup failed.
+        // Show a transient hint instead of clobbering the address field.
+        setErrorMessage(
+          "Address lookup unavailable — pin location is still saved."
+        );
+        emitChange(label || `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`, latitude, longitude);
       }
     },
-    [emitChange]
+    [emitChange, label]
   );
 
   // Forward geocode an address string → show suggestions
