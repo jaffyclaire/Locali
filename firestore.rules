@@ -66,6 +66,13 @@ service cloud.firestore {
         allow write: if isMerchantOwner(merchantId);
       }
 
+      // Merchant Posts subcollection
+      // Publicly readable; only the merchant owner can create/update/delete posts
+      match /posts/{postId} {
+        allow read: if true;
+        allow write: if isMerchantOwner(merchantId);
+      }
+
       // Merchant Reviews subcollection
       // Publicly readable; user can only create/update/delete their own review
       match /reviews/{reviewId} {
