@@ -27,7 +27,10 @@ import {
   updateMerchantDoc,
   getTodayDateStr,
   getLatestStreak,
+  fetchMerchantPosts,
+  deleteMerchantPost,
   MerchantActivityItem,
+  MerchantPost,
 } from "../../src/services/firestoreService";
 import { Merchant } from "../../src/types";
 
@@ -42,6 +45,7 @@ export default function MerchantDashboard() {
     directionTaps: 0,
   });
   const [activities, setActivities] = useState<MerchantActivityItem[]>([]);
+  const [posts, setPosts] = useState<MerchantPost[]>([]);
   const [checkedIn, setCheckedIn] = useState(false);
   const [streak, setStreak] = useState(0);
   const [isOpen, setIsOpen] = useState(true);
@@ -70,14 +74,16 @@ export default function MerchantDashboard() {
           Boolean(currentMerchant.isVerified && currentMerchant.verifiedTodayAt);
         setCheckedIn(isVerifiedToday);
 
-        const [mMetrics, mActivities, mStreak] = await Promise.all([
+        const [mMetrics, mActivities, mStreak, mPosts] = await Promise.all([
           fetchMerchantPerformanceMetrics(String(currentMerchant.id)),
           fetchMerchantRecentActivity(String(currentMerchant.id)),
           getLatestStreak(String(currentMerchant.id)),
+          fetchMerchantPosts(String(currentMerchant.id)),
         ]);
 
         setMetrics(mMetrics);
         setActivities(mActivities);
+        setPosts(mPosts);
         setStreak(mStreak || (isVerifiedToday ? 1 : 0));
       }
     } catch (err) {
@@ -377,6 +383,50 @@ export default function MerchantDashboard() {
                       <View style={styles.activityTextGroup}>
                         <Text style={styles.activityText}>{a.text}</Text>
                         <Text style={styles.activityTime}>{a.time}</Text>
+                      </View>
+                    </View>
+                  ))
+                )}
+              </View>
+
+              {/* Posts Feed */}
+              <View style={styles.activitySection}>
+                <Text style={styles.sectionTitle}>Your Posts</Text>
+                {posts.length === 0 ? (
+                  <View style={styles.activityItemCard}>
+                    <TagIcon size={18} color={Colors.teal[600]} />
+                    <View style={styles.activityTextGroup}>
+                      <Text style={styles.activityText}>
+                        No posts yet. Tap "Promote Listing" in My Shop to create your first post.
+                      </Text>
+                    </View>
+                  </View>
+                ) : (
+                  posts.map((post) => (
+                    <View key={post.id} style={styles.postCard}>
+                      {post.image ? (
+                        <Image
+                          source={{ uri: post.image }}
+                          style={styles.postImage}
+                          resizeMode="cover"
+                        />
+                      ) : null}
+                      <View style={styles.postBody}>
+                        <Text style={styles.postCaption}>{post.caption}</Text>
+                        <View style={styles.postMetaRow}>
+                          <Text style={styles.postType}>{post.type}</Text>
+                          <TouchableOpacity
+                            onPress={async () => {
+                              if (merchant) {
+                                await deleteMerchantPost(String(merchant.id), post.id);
+                                setPosts((prev) => prev.filter((p) => p.id !== post.id));
+                              }
+                            }}
+                            activeOpacity={0.7}
+                          >
+                            <Text style={styles.postDelete}>Delete</Text>
+                          </TouchableOpacity>
+                        </View>
                       </View>
                     </View>
                   ))
@@ -762,6 +812,44 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: Colors.slate[400],
     marginTop: 2,
+  },
+  postCard: {
+    backgroundColor: Colors.white,
+    borderRadius: Radius["2xl"],
+    borderWidth: 1,
+    borderColor: Colors.slate[100],
+    overflow: "hidden",
+    ...Shadows.sm,
+  },
+  postImage: {
+    width: "100%",
+    height: 140,
+    backgroundColor: Colors.slate[100],
+  },
+  postBody: {
+    padding: 12,
+  },
+  postCaption: {
+    fontSize: 13,
+    color: Colors.slate[800],
+    lineHeight: 18,
+  },
+  postMetaRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 8,
+  },
+  postType: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: Colors.teal[700],
+    textTransform: "capitalize",
+  },
+  postDelete: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: Colors.rose[500],
   },
 });
 

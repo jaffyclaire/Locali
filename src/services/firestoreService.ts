@@ -1308,3 +1308,84 @@ export const getUserMerchantListing = async (
 ): Promise<MapMerchant | null> => {
   return fetchMerchantByOwner(uid);
 };
+
+// ============================================================
+// Merchant Posts (merchants/{merchantId}/posts/{postId})
+// ============================================================
+
+export interface MerchantPost {
+  id: string;
+  image: string;
+  caption: string;
+  type: string;
+  createdAt: any;
+}
+
+export const createMerchantPost = async (
+  merchantId: string,
+  data: { image: string; caption: string; type?: string }
+): Promise<string | null> => {
+  if (!isFirebaseConfigured() || !merchantId) return null;
+  try {
+    const docRef = await addDoc(
+      collection(db, "merchants", String(merchantId), "posts"),
+      {
+        image: data.image,
+        caption: data.caption,
+        type: data.type || "promo",
+        createdAt: serverTimestamp(),
+      }
+    );
+    return docRef.id;
+  } catch (err) {
+    console.error("createMerchantPost error:", err);
+    return null;
+  }
+};
+
+export const fetchMerchantPosts = async (
+  merchantId: string
+): Promise<MerchantPost[]> => {
+  if (!isFirebaseConfigured() || !merchantId) return [];
+  try {
+    const snap = await getDocs(
+      collection(db, "merchants", String(merchantId), "posts")
+    );
+    const posts: MerchantPost[] = snap.docs.map((d) => {
+      const data = d.data();
+      return {
+        id: d.id,
+        image: data.image || "",
+        caption: data.caption || "",
+        type: data.type || "promo",
+        createdAt: data.createdAt,
+      };
+    });
+    // Sort by createdAt descending (most recent first)
+    posts.sort((a, b) => {
+      const timeA = a.createdAt?.toMillis?.() || 0;
+      const timeB = b.createdAt?.toMillis?.() || 0;
+      return timeB - timeA;
+    });
+    return posts;
+  } catch (err) {
+    console.warn("fetchMerchantPosts error:", err);
+    return [];
+  }
+};
+
+export const deleteMerchantPost = async (
+  merchantId: string,
+  postId: string
+): Promise<boolean> => {
+  if (!isFirebaseConfigured() || !merchantId || !postId) return false;
+  try {
+    await deleteDoc(
+      doc(db, "merchants", String(merchantId), "posts", String(postId))
+    );
+    return true;
+  } catch (err) {
+    console.error("deleteMerchantPost error:", err);
+    return false;
+  }
+};

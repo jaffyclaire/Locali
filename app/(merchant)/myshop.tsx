@@ -34,6 +34,10 @@ import {
   fetchMerchants,
   fetchCategories,
   updateMerchantDoc,
+  createMerchantPost,
+  fetchMerchantPosts,
+  deleteMerchantPost,
+  MerchantPost,
 } from "../../src/services/firestoreService";
 import {
   pickImageFromGallery,
@@ -89,6 +93,13 @@ export default function MerchantMyShop() {
   const [editOpenTime, setEditOpenTime] = useState("");
   const [editCloseTime, setEditCloseTime] = useState("");
 
+  // Posts / Promote Listing state
+  const [posts, setPosts] = useState<MerchantPost[]>([]);
+  const [createPostVisible, setCreatePostVisible] = useState(false);
+  const [postCaption, setPostCaption] = useState("");
+  const [postImageUri, setPostImageUri] = useState<string | null>(null);
+  const [creatingPost, setCreatingPost] = useState(false);
+
   const loadMerchant = useCallback(async (isPull = false) => {
     try {
       if (isPull) setRefreshing(true);
@@ -136,6 +147,12 @@ export default function MerchantMyShop() {
       }
     });
   }, []);
+
+  useEffect(() => {
+    if (merchant?.id) {
+      fetchMerchantPosts(String(merchant.id)).then(setPosts);
+    }
+  }, [merchant?.id]);
 
   const handleChangeCover = async () => {
     if (!merchant) return;
@@ -350,6 +367,48 @@ export default function MerchantMyShop() {
       });
     } catch (err) {
       console.warn("saveDayTimes error:", err);
+    }
+  };
+
+  const handlePickPostImage = async () => {
+    const uri = await pickImageFromGallery();
+    if (uri) {
+      setPostImageUri(uri);
+    }
+  };
+
+  const handleCreatePost = async () => {
+    if (!merchant || !postImageUri || !postCaption.trim()) return;
+    setCreatingPost(true);
+    try {
+      const remotePath = `merchants/${merchant.id}/posts/${Date.now()}.jpg`;
+      const downloadUrl = await uploadImageAsync(postImageUri, remotePath);
+      await createMerchantPost(String(merchant.id), {
+        image: downloadUrl,
+        caption: postCaption.trim(),
+        type: "promo",
+      });
+      const newPosts = await fetchMerchantPosts(String(merchant.id));
+      setPosts(newPosts);
+      setPostCaption("");
+      setPostImageUri(null);
+      setCreatePostVisible(false);
+    } catch (err) {
+      console.error("handleCreatePost error:", err);
+      Alert.alert("Post Failed", "Could not create post. Please try again.");
+    } finally {
+      setCreatingPost(false);
+    }
+  };
+
+  const handleDeletePost = async (postId: string) => {
+    if (!merchant) return;
+    try {
+      await deleteMerchantPost(String(merchant.id), postId);
+      setPosts((prev) => prev.filter((p) => p.id !== postId));
+    } catch (err) {
+      console.error("handleDeletePost error:", err);
+      Alert.alert("Delete Failed", "Could not delete post.");
     }
   };
 
@@ -658,6 +717,7 @@ export default function MerchantMyShop() {
                 </View>
                 <TouchableOpacity
                   style={styles.promoteButton}
+                  onPress={() => setCreatePostVisible(true)}
                   activeOpacity={0.85}
                 >
                   <View
@@ -833,6 +893,80 @@ export default function MerchantMyShop() {
                 onPress={saveDayTimes}
               >
                 <Text style={styles.modalSaveText}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Create Post Modal */}
+      <Modal
+        visible={createPostVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setCreatePostVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Create Post</Text>
+              <TouchableOpacity
+                onPress={() => setCreatePostVisible(false)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <CloseIcon size={18} color={Colors.slate[400]} />
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity
+              style={styles.postImagePicker}
+              onPress={handlePickPostImage}
+              activeOpacity={0.8}
+            >
+              {postImageUri ? (
+                <Image
+                  source={{ uri: postImageUri }}
+                  style={styles.postImagePreview}
+                  resizeMode="cover"
+                />
+              ) : (
+                <Text style={styles.postImagePickerText}>
+                  Tap to add photo
+                </Text>
+              )}
+            </TouchableOpacity>
+
+            <TextInput
+              style={styles.postCaptionInput}
+              value={postCaption}
+              onChangeText={setPostCaption}
+              placeholder="Write a caption…"
+              placeholderTextColor={Colors.slate[400]}
+              multiline
+              numberOfLines={3}
+            />
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.modalCancelButton}
+                onPress={() => setCreatePostVisible(false)}
+                disabled={creatingPost}
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.modalSaveButton,
+                  (!postImageUri || !postCaption.trim()) && { opacity: 0.5 },
+                ]}
+                onPress={handleCreatePost}
+                disabled={creatingPost || !postImageUri || !postCaption.trim()}
+              >
+                {creatingPost ? (
+                  <ActivityIndicator size="small" color={Colors.white} />
+                ) : (
+                  <Text style={styles.modalSaveText}>Post</Text>
+                )}
               </TouchableOpacity>
             </View>
           </View>
@@ -1345,5 +1479,38 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: Colors.slate[500],
     marginBottom: 6,
+  },
+  postImagePicker: {
+    height: 120,
+    borderWidth: 2,
+    borderColor: Colors.slate[200],
+    borderStyle: "dashed",
+    borderRadius: Radius.xl,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Colors.slate[50],
+    marginBottom: 12,
+    overflow: "hidden",
+  },
+  postImagePreview: {
+    width: "100%",
+    height: "100%",
+  },
+  postImagePickerText: {
+    fontSize: 13,
+    color: Colors.slate[400],
+    fontWeight: "500",
+  },
+  postCaptionInput: {
+    borderWidth: 1,
+    borderColor: Colors.slate[200],
+    borderRadius: Radius.lg,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: Colors.slate[900],
+    backgroundColor: Colors.slate[50],
+    textAlignVertical: "top",
+    height: 80,
   },
 });
