@@ -153,6 +153,22 @@ export default function DiscoverScreen() {
     }
   };
 
+  const handleGo = async (item: MapMerchant) => {
+    setActiveMarker(item);
+    if (item.lat != null && item.lng != null && !isNaN(item.lat) && !isNaN(item.lng)) {
+      mapRef.current?.animateToRegion(
+        {
+          latitude: item.lat,
+          longitude: item.lng,
+          latitudeDelta: 0.008,
+          longitudeDelta: 0.008,
+        },
+        600
+      );
+      await openDirections(item.lat, item.lng, item.name, item.id, user?.uid);
+    }
+  };
+
   const isFilterActive = filterOpenNow || filterVerified || distanceKm !== 5;
 
   console.log("[DiscoverScreen] loading:", loading, "merchants:", merchants.length, "filtered:", filtered.length);
@@ -538,7 +554,8 @@ export default function DiscoverScreen() {
                       </View>
                       <TouchableOpacity
                         style={styles.goButton}
-                        onPress={() => setSelectedMerchant(item)}
+                        onPress={() => handleGo(item)}
+                        activeOpacity={0.8}
                       >
                         <Text style={styles.goButtonText}>Go</Text>
                       </TouchableOpacity>
