@@ -1316,6 +1316,7 @@ export const getUserMerchantListing = async (
 export interface MerchantPost {
   id: string;
   image: string;
+  images?: string[];
   caption: string;
   type: string;
   createdAt: any;
@@ -1353,9 +1354,15 @@ export const fetchMerchantPosts = async (
     );
     const posts: MerchantPost[] = snap.docs.map((d) => {
       const data = d.data();
+      const rawImages: string[] = Array.isArray(data.images)
+        ? data.images
+        : typeof data.image === "string" && data.image
+        ? [data.image]
+        : [];
       return {
         id: d.id,
-        image: data.image || "",
+        image: rawImages[0] || data.image || "",
+        images: rawImages,
         caption: data.caption || "",
         type: data.type || "promo",
         createdAt: data.createdAt,

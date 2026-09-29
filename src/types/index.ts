@@ -174,3 +174,13 @@ export interface AdminMerchant {
   description?: string;
   coverPhotoUrl?: string;
 }
+
+export interface MerchantPost {
+  id: string;
+  image: string;
+  images?: string[];
+  caption: string;
+  type: string;
+  createdAt: any;
+}
+
