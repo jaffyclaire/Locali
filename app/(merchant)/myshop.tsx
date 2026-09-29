@@ -78,6 +78,17 @@ export default function MerchantMyShop() {
   // Category list synced with Firestore interests collection
   const [categoriesList, setCategoriesList] = useState<string[]>([]);
 
+  // Per-day hours state
+  const [dayTimes, setDayTimes] = useState<{
+    [key: string]: { openTime: string; closeTime: string };
+  }>({});
+
+  // Time editor modal state
+  const [timeModalVisible, setTimeModalVisible] = useState(false);
+  const [editingDay, setEditingDay] = useState<string | null>(null);
+  const [editOpenTime, setEditOpenTime] = useState("");
+  const [editCloseTime, setEditCloseTime] = useState("");
+
   const loadMerchant = useCallback(async (isPull = false) => {
     try {
       if (isPull) setRefreshing(true);
@@ -92,12 +103,18 @@ export default function MerchantMyShop() {
         setMerchant(m);
         if (m.weeklyHours) {
           const map: { [key: string]: boolean } = {};
+          const times: { [key: string]: { openTime: string; closeTime: string } } = {};
           DAYS_KEYS.forEach((d) => {
             const dayKey = d.toLowerCase();
             const data = m?.weeklyHours?.[dayKey];
             map[d] = data ? !data.isClosed : d !== "Sun";
+            times[d] = {
+              openTime: data?.openTime || "07:00",
+              closeTime: data?.closeTime || "21:00",
+            };
           });
           setDayHours(map);
+          setDayTimes(times);
         }
       }
     } catch (err) {
@@ -265,9 +282,10 @@ export default function MerchantMyShop() {
     try {
       const weeklyHoursRecord: Record<string, OperatingHoursDay> = {};
       Object.entries(newHours).forEach(([day, open]) => {
+        const times = dayTimes[day] || { openTime: "07:00", closeTime: "21:00" };
         weeklyHoursRecord[day.toLowerCase()] = {
-          openTime: "7:00 AM",
-          closeTime: "9:00 PM",
+          openTime: times.openTime,
+          closeTime: times.closeTime,
           isClosed: !open,
         };
       });
@@ -299,6 +317,40 @@ export default function MerchantMyShop() {
       persistWeeklyHours(next);
       return next;
     });
+  };
+
+  const openTimeEditor = (day: string) => {
+    const times = dayTimes[day] || { openTime: "07:00", closeTime: "21:00" };
+    setEditingDay(day);
+    setEditOpenTime(times.openTime);
+    setEditCloseTime(times.closeTime);
+    setTimeModalVisible(true);
+  };
+
+  const saveDayTimes = async () => {
+    if (!merchant || !editingDay) return;
+    const newTimes = {
+      ...dayTimes,
+      [editingDay]: { openTime: editOpenTime, closeTime: editCloseTime },
+    };
+    setDayTimes(newTimes);
+    setTimeModalVisible(false);
+    try {
+      const weeklyHoursRecord: Record<string, OperatingHoursDay> = {};
+      Object.entries(dayHours).forEach(([day, open]) => {
+        const times = newTimes[day] || { openTime: "07:00", closeTime: "21:00" };
+        weeklyHoursRecord[day.toLowerCase()] = {
+          openTime: times.openTime,
+          closeTime: times.closeTime,
+          isClosed: !open,
+        };
+      });
+      await updateMerchantDoc(String(merchant.id), {
+        weeklyHours: weeklyHoursRecord,
+      });
+    } catch (err) {
+      console.warn("saveDayTimes error:", err);
+    }
   };
 
   if (previewMode) {
@@ -549,9 +601,14 @@ export default function MerchantMyShop() {
                       <Text style={styles.dayLabel}>{day}</Text>
                       <View style={styles.dayControls}>
                         {open ? (
-                          <Text style={styles.dayHoursText}>
-                            7:00 AM – 9:00 PM
-                          </Text>
+                          <TouchableOpacity
+                            onPress={() => openTimeEditor(day)}
+                            activeOpacity={0.7}
+                          >
+                            <Text style={styles.dayHoursText}>
+                              {dayTimes[day]?.openTime || "07:00"} – {dayTimes[day]?.closeTime || "21:00"}
+                            </Text>
+                          </TouchableOpacity>
                         ) : (
                           <Text style={styles.dayClosedText}>Closed</Text>
                         )}
@@ -716,6 +773,66 @@ export default function MerchantMyShop() {
                 ) : (
                   <Text style={styles.modalSaveText}>Save Changes</Text>
                 )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Time Editor Modal */}
+      <Modal
+        visible={timeModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setTimeModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Edit Hours — {editingDay}</Text>
+              <TouchableOpacity
+                onPress={() => setTimeModalVisible(false)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <CloseIcon size={18} color={Colors.slate[400]} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.timeEditRow}>
+              <View style={styles.timeEditCol}>
+                <Text style={styles.timeEditLabel}>Opens at</Text>
+                <TextInput
+                  style={styles.modalInput}
+                  value={editOpenTime}
+                  onChangeText={setEditOpenTime}
+                  placeholder="09:00"
+                  placeholderTextColor={Colors.slate[400]}
+                />
+              </View>
+              <View style={styles.timeEditCol}>
+                <Text style={styles.timeEditLabel}>Closes at</Text>
+                <TextInput
+                  style={styles.modalInput}
+                  value={editCloseTime}
+                  onChangeText={setEditCloseTime}
+                  placeholder="18:00"
+                  placeholderTextColor={Colors.slate[400]}
+                />
+              </View>
+            </View>
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.modalCancelButton}
+                onPress={() => setTimeModalVisible(false)}
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.modalSaveButton}
+                onPress={saveDayTimes}
+              >
+                <Text style={styles.modalSaveText}>Save</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1214,5 +1331,19 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     color: Colors.white,
+  },
+  timeEditRow: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 8,
+  },
+  timeEditCol: {
+    flex: 1,
+  },
+  timeEditLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: Colors.slate[500],
+    marginBottom: 6,
   },
 });
