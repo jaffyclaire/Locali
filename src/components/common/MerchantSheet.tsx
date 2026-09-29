@@ -9,6 +9,8 @@ import {
   StyleSheet,
   Dimensions,
   ActivityIndicator,
+  TextInput,
+  Alert,
 } from "react-native";
 import { Merchant } from "../../types";
 import MerchantMap from "../MerchantMap";
@@ -27,6 +29,8 @@ import { useAuthRole } from "../../context/AuthRoleContext";
 import {
   fetchMerchantPosts,
   MerchantPost,
+  submitMerchantReview,
+  fetchUserMerchantReview,
 } from "../../services/firestoreService";
 
 interface MerchantSheetProps {
@@ -51,6 +55,11 @@ export const MerchantSheet: React.FC<MerchantSheetProps> = ({
   const [posts, setPosts] = useState<MerchantPost[]>([]);
   const [postsLoading, setPostsLoading] = useState(false);
   const [showPostsView, setShowPostsView] = useState(false);
+  const [userRating, setUserRating] = useState(0);
+  const [reviewComment, setReviewComment] = useState("");
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+  const [reviewSubmitted, setReviewSubmitted] = useState(false);
+  const [hasExistingReview, setHasExistingReview] = useState(false);
 
   useEffect(() => {
     if (merchant?.id && visible) {
@@ -64,6 +73,24 @@ export const MerchantSheet: React.FC<MerchantSheetProps> = ({
     }
   }, [merchant?.id, visible]);
 
+  useEffect(() => {
+    if (merchant?.id && user?.uid && visible) {
+      fetchUserMerchantReview(merchant.id, user.uid)
+        .then((rev) => {
+          if (rev) {
+            setUserRating(rev.rating);
+            setReviewComment(rev.comment);
+            setHasExistingReview(true);
+          } else {
+            setUserRating(0);
+            setReviewComment("");
+            setHasExistingReview(false);
+          }
+        })
+        .catch((err) => console.warn("[MerchantSheet] fetchUserMerchantReview error:", err));
+    }
+  }, [merchant?.id, user?.uid, visible]);
+
   if (!merchant) return null;
 
   const lat = (merchant as any).lat ?? merchant.latitude;
@@ -75,11 +102,41 @@ export const MerchantSheet: React.FC<MerchantSheetProps> = ({
     await openDirections(lat, lng, merchant.name, merchant.id, user?.uid);
   };
 
+  const handleSubmitReview = async (ratingVal?: number) => {
+    const finalRating = ratingVal ?? userRating;
+    if (!merchant || !user?.uid) {
+      Alert.alert("Sign In Required", "Please sign in to rate this business.");
+      return;
+    }
+    if (finalRating < 1 || finalRating > 5) {
+      Alert.alert("Rating Required", "Please select a star rating from 1 to 5.");
+      return;
+    }
+    setIsSubmittingReview(true);
+    try {
+      const ok = await submitMerchantReview(merchant.id, user.uid, finalRating, reviewComment);
+      if (ok) {
+        setUserRating(finalRating);
+        setHasExistingReview(true);
+        setReviewSubmitted(true);
+        setTimeout(() => setReviewSubmitted(false), 4000);
+      } else {
+        Alert.alert("Error", "Could not submit review. Please try again.");
+      }
+    } catch (err) {
+      console.error("[MerchantSheet] submitReview error:", err);
+      Alert.alert("Error", "Could not submit review. Please try again.");
+    } finally {
+      setIsSubmittingReview(false);
+    }
+  };
+
   const handleClose = () => {
     setShowReport(false);
     setReported(false);
     setReportOption("");
     setShowPostsView(false);
+    setReviewSubmitted(false);
     onClose();
   };
 
@@ -337,6 +394,88 @@ export const MerchantSheet: React.FC<MerchantSheetProps> = ({
                   <Text style={styles.noHoursText}>Hours not available</Text>
                 )}
               </View>
+            </View>
+
+            {/* Rate & Review Section */}
+            <View style={styles.reviewSectionCard}>
+              <View style={styles.reviewSectionHeader}>
+                <Text style={styles.sectionTitle}>
+                  {hasExistingReview ? "Your Rating & Review" : "Rate this Business"}
+                </Text>
+                {hasExistingReview && (
+                  <View style={styles.reviewedBadge}>
+                    <Text style={styles.reviewedBadgeText}>Rated</Text>
+                  </View>
+                )}
+              </View>
+              <Text style={styles.reviewPromptText}>
+                {hasExistingReview
+                  ? "Tap any star to change your rating"
+                  : "Tap a star to rate your experience"}
+              </Text>
+
+              {/* 5 Interactive Stars */}
+              <View style={styles.starsRow}>
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <TouchableOpacity
+                    key={star}
+                    onPress={() => {
+                      setUserRating(star);
+                      handleSubmitReview(star);
+                    }}
+                    activeOpacity={0.7}
+                    style={styles.starTouchable}
+                    hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+                  >
+                    <StarIcon
+                      size={28}
+                      color={star <= userRating ? Colors.amber[500] : Colors.slate[200]}
+                    />
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {userRating > 0 && (
+                <View style={styles.reviewInputContainer}>
+                  <TextInput
+                    style={styles.reviewCommentInput}
+                    placeholder="Write an optional review (how was service, food, atmosphere?)..."
+                    placeholderTextColor={Colors.slate[400]}
+                    value={reviewComment}
+                    onChangeText={setReviewComment}
+                    multiline
+                    numberOfLines={2}
+                  />
+                  <TouchableOpacity
+                    style={[
+                      styles.submitReviewButton,
+                      isSubmittingReview && { opacity: 0.6 },
+                    ]}
+                    onPress={() => handleSubmitReview()}
+                    disabled={isSubmittingReview}
+                    activeOpacity={0.8}
+                  >
+                    {isSubmittingReview ? (
+                      <ActivityIndicator size="small" color={Colors.white} />
+                    ) : (
+                      <Text style={styles.submitReviewButtonText}>
+                        {hasExistingReview ? "Update Review" : "Submit Review"}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {reviewSubmitted && (
+                <View style={styles.reviewSuccessNotice}>
+                  <CheckIcon size={14} color={Colors.emerald[700]} />
+                  <Text style={styles.reviewSuccessNoticeText}>
+                    {hasExistingReview
+                      ? "Your rating has been updated!"
+                      : "Thank you! Your rating has been submitted."}
+                  </Text>
+                </View>
+              )}
             </View>
 
             {/* Location mini-map */}
@@ -956,5 +1095,97 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: Colors.slate[800],
     lineHeight: 18,
+  },
+  reviewSectionCard: {
+    backgroundColor: Colors.white,
+    borderRadius: Radius.xl,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: Colors.slate[100],
+    ...Shadows.sm,
+  },
+  reviewSectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 4,
+  },
+  reviewedBadge: {
+    backgroundColor: Colors.amber[50],
+    borderWidth: 1,
+    borderColor: Colors.amber[200],
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: Radius.full,
+  },
+  reviewedBadgeText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: Colors.amber[800],
+  },
+  reviewPromptText: {
+    fontSize: 12,
+    color: Colors.slate[500],
+    marginBottom: 12,
+  },
+  starsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+    paddingVertical: 8,
+    backgroundColor: Colors.slate[50],
+    borderRadius: Radius.lg,
+    marginBottom: 12,
+  },
+  starTouchable: {
+    padding: 4,
+  },
+  reviewInputContainer: {
+    gap: 10,
+    marginTop: 4,
+  },
+  reviewCommentInput: {
+    borderWidth: 1,
+    borderColor: Colors.slate[200],
+    borderRadius: Radius.lg,
+    padding: 12,
+    fontSize: 13,
+    color: Colors.slate[800],
+    backgroundColor: Colors.white,
+    minHeight: 60,
+    textAlignVertical: "top",
+  },
+  submitReviewButton: {
+    backgroundColor: Colors.teal[700],
+    paddingVertical: 10,
+    borderRadius: Radius.lg,
+    alignItems: "center",
+    justifyContent: "center",
+    ...Shadows.sm,
+  },
+  submitReviewButtonText: {
+    color: Colors.white,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  reviewSuccessNotice: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: Colors.emerald[50],
+    borderWidth: 1,
+    borderColor: Colors.emerald[200],
+    borderRadius: Radius.lg,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginTop: 10,
+  },
+  reviewSuccessNoticeText: {
+    fontSize: 12,
+    color: Colors.emerald[800],
+    fontWeight: "600",
+    flex: 1,
   },
 });

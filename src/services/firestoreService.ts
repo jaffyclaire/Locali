@@ -1396,3 +1396,58 @@ export const deleteMerchantPost = async (
     return false;
   }
 };
+
+// ============================================================
+// Merchant Reviews (merchants/{merchantId}/reviews/{reviewId})
+// ============================================================
+
+export const submitMerchantReview = async (
+  merchantId: string | number,
+  userId: string,
+  rating: number,
+  comment: string = ""
+): Promise<boolean> => {
+  if (!isFirebaseConfigured() || !merchantId || !userId) return false;
+  try {
+    const reviewRef = doc(db, "merchants", String(merchantId), "reviews", String(userId));
+    await setDoc(
+      reviewRef,
+      {
+        userId: String(userId),
+        rating: Math.max(1, Math.min(5, Math.round(rating))),
+        comment: comment.trim(),
+        updatedAt: serverTimestamp(),
+        createdAt: serverTimestamp(),
+      },
+      { merge: true }
+    );
+    return true;
+  } catch (err) {
+    console.error("submitMerchantReview error:", err);
+    return false;
+  }
+};
+
+export const fetchUserMerchantReview = async (
+  merchantId: string | number,
+  userId: string
+): Promise<{ rating: number; comment: string } | null> => {
+  if (!isFirebaseConfigured() || !merchantId || !userId) return null;
+  try {
+    const snap = await getDoc(
+      doc(db, "merchants", String(merchantId), "reviews", String(userId))
+    );
+    if (snap.exists()) {
+      const data = snap.data();
+      return {
+        rating: typeof data.rating === "number" ? data.rating : 0,
+        comment: data.comment || "",
+      };
+    }
+    return null;
+  } catch (err) {
+    console.warn("fetchUserMerchantReview error:", err);
+    return null;
+  }
+};
+
