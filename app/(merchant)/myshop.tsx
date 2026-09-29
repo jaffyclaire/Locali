@@ -27,6 +27,7 @@ import {
   CheckIcon,
 } from "../../src/components/icons/AppIcons";
 import { HolidayClosureCard } from "../../src/components/common/HolidayClosureCard";
+import { LocationPicker } from "../../src/components/common/LocationPicker";
 import { useAuthRole } from "../../src/context/AuthRoleContext";
 import {
   fetchMerchantByOwner,
@@ -38,6 +39,7 @@ import {
   uploadImageAsync,
 } from "../../src/services/storageService";
 import { Merchant, OperatingHoursDay } from "../../src/types";
+import { AddressPinState } from "../../src/hooks/useAddressPin";
 
 const DAYS_KEYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -68,6 +70,9 @@ export default function MerchantMyShop() {
   >(null);
   const [editValue, setEditValue] = useState("");
   const [savingField, setSavingField] = useState(false);
+
+  // Address pin state for the map picker in the Edit Address modal
+  const [addressPin, setAddressPin] = useState<AddressPinState | null>(null);
 
   const loadMerchant = useCallback(async (isPull = false) => {
     try {
@@ -194,6 +199,11 @@ export default function MerchantMyShop() {
           break;
         case "Address":
           setEditValue(merchant.address || "");
+          setAddressPin({
+            label: merchant.address || "",
+            lat: merchant.latitude || 0,
+            lng: merchant.longitude || 0,
+          });
           break;
       }
     }
@@ -220,6 +230,10 @@ export default function MerchantMyShop() {
           break;
         case "Address":
           payload.address = editValue.trim();
+          if (addressPin) {
+            payload.latitude = addressPin.lat;
+            payload.longitude = addressPin.lng;
+          }
           break;
       }
 
@@ -627,8 +641,22 @@ export default function MerchantMyShop() {
               placeholderTextColor={Colors.slate[400]}
               multiline={editField === "Description"}
               numberOfLines={editField === "Description" ? 3 : 1}
-              autoFocus
+              autoFocus={editField !== "Address"}
             />
+
+            {editField === "Address" && addressPin && (
+              <View style={{ marginTop: 12 }}>
+                <Text style={styles.mapPickerLabel}>Set location on map</Text>
+                <LocationPicker
+                  initial={addressPin}
+                  onChange={(state: AddressPinState) => {
+                    setAddressPin(state);
+                    setEditValue(state.label);
+                  }}
+                  mapHeight={200}
+                />
+              </View>
+            )}
 
             <View style={styles.modalActions}>
               <TouchableOpacity
@@ -1084,6 +1112,12 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: Colors.slate[900],
     backgroundColor: Colors.slate[50],
+  },
+  mapPickerLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: Colors.slate[500],
+    marginBottom: 6,
   },
   modalTextArea: {
     height: 80,
