@@ -32,6 +32,7 @@ import { useAuthRole } from "../../src/context/AuthRoleContext";
 import {
   fetchMerchantByOwner,
   fetchMerchants,
+  fetchCategories,
   updateMerchantDoc,
 } from "../../src/services/firestoreService";
 import {
@@ -74,6 +75,9 @@ export default function MerchantMyShop() {
   // Address pin state for the map picker in the Edit Address modal
   const [addressPin, setAddressPin] = useState<AddressPinState | null>(null);
 
+  // Category list synced with Firestore interests collection
+  const [categoriesList, setCategoriesList] = useState<string[]>([]);
+
   const loadMerchant = useCallback(async (isPull = false) => {
     try {
       if (isPull) setRefreshing(true);
@@ -107,6 +111,14 @@ export default function MerchantMyShop() {
   useEffect(() => {
     loadMerchant();
   }, [loadMerchant]);
+
+  useEffect(() => {
+    fetchCategories().then((cats) => {
+      if (cats && cats.length > 0) {
+        setCategoriesList(cats.filter((c) => c !== "All"));
+      }
+    });
+  }, []);
 
   const handleChangeCover = async () => {
     if (!merchant) return;
@@ -630,19 +642,47 @@ export default function MerchantMyShop() {
               </TouchableOpacity>
             </View>
 
-            <TextInput
-              style={[
-                styles.modalInput,
-                editField === "Description" && styles.modalTextArea,
-              ]}
-              value={editValue}
-              onChangeText={setEditValue}
-              placeholder={`Enter ${editField?.toLowerCase()}`}
-              placeholderTextColor={Colors.slate[400]}
-              multiline={editField === "Description"}
-              numberOfLines={editField === "Description" ? 3 : 1}
-              autoFocus={editField !== "Address"}
-            />
+            {editField === "Category" ? (
+              <View style={{ marginTop: 4 }}>
+                <Text style={styles.mapPickerLabel}>Select a category</Text>
+                <ScrollView style={styles.categoryDropdown}>
+                  {categoriesList.map((cat) => (
+                    <TouchableOpacity
+                      key={cat}
+                      style={[
+                        styles.categoryOption,
+                        editValue === cat && styles.categoryOptionSelected,
+                      ]}
+                      onPress={() => setEditValue(cat)}
+                      activeOpacity={0.7}
+                    >
+                      <Text
+                        style={[
+                          styles.categoryOptionText,
+                          editValue === cat && styles.categoryOptionTextSelected,
+                        ]}
+                      >
+                        {cat}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            ) : (
+              <TextInput
+                style={[
+                  styles.modalInput,
+                  editField === "Description" && styles.modalTextArea,
+                ]}
+                value={editValue}
+                onChangeText={setEditValue}
+                placeholder={`Enter ${editField?.toLowerCase()}`}
+                placeholderTextColor={Colors.slate[400]}
+                multiline={editField === "Description"}
+                numberOfLines={editField === "Description" ? 3 : 1}
+                autoFocus={editField !== "Address"}
+              />
+            )}
 
             {editField === "Address" && addressPin && (
               <View style={{ marginTop: 12 }}>
@@ -1118,6 +1158,30 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: Colors.slate[500],
     marginBottom: 6,
+  },
+  categoryDropdown: {
+    maxHeight: 200,
+    borderWidth: 1,
+    borderColor: Colors.slate[200],
+    borderRadius: Radius.lg,
+    backgroundColor: Colors.slate[50],
+  },
+  categoryOption: {
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.slate[100],
+  },
+  categoryOptionSelected: {
+    backgroundColor: Colors.teal[50],
+  },
+  categoryOptionText: {
+    fontSize: 14,
+    color: Colors.slate[700],
+  },
+  categoryOptionTextSelected: {
+    fontWeight: "700",
+    color: Colors.teal[700],
   },
   modalTextArea: {
     height: 80,
