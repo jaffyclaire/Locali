@@ -149,7 +149,9 @@ export default function MerchantDashboard() {
         {/* Header – Teal Accent */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
-            <Text style={styles.headerTitle}>Dashboard</Text>
+            <Text style={styles.headerTitle}>
+              {merchant ? merchant.name : "Dashboard"}
+            </Text>
             <Text style={styles.headerSubtitle}>
               {merchant ? `${merchant.name} · ${merchant.category}` : "No business"}
             </Text>
