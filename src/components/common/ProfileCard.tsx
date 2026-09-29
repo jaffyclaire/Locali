@@ -18,11 +18,17 @@ import { pickAvatarImage, uploadImageAsync } from "../../services/storageService
 interface ProfileCardProps {
   roleBadgeText?: string;
   themeColor?: string;
+  /** Business photo URL — shown instead of personal avatar when provided */
+  businessPhotoUrl?: string;
+  /** Business name — used for the initial when no business photo is set */
+  businessName?: string;
 }
 
 export const ProfileCard: React.FC<ProfileCardProps> = ({
   roleBadgeText,
   themeColor = Colors.teal[700],
+  businessPhotoUrl,
+  businessName,
 }) => {
   const { user, updateUser } = useAuthRole();
   const [modalVisible, setModalVisible] = useState(false);
@@ -69,7 +75,7 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
     }
   };
 
-  const initials =
+  const personalInitials =
     user.initials ||
     (user.fullName
       ? user.fullName
@@ -80,6 +86,16 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
           .slice(0, 2)
       : "U");
 
+  const businessInitials = businessName
+    ? businessName
+        .trim()
+        .split(" ")
+        .map((n) => n[0])
+        .join("")
+        .toUpperCase()
+        .slice(0, 2)
+    : "B";
+
   return (
     <View style={styles.card}>
       <TouchableOpacity
@@ -88,7 +104,17 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
         disabled={uploadingAvatar}
         activeOpacity={0.8}
       >
-        {user.avatarUrl ? (
+        {businessPhotoUrl ? (
+          <Image
+            source={{ uri: businessPhotoUrl }}
+            style={styles.avatarImage}
+            resizeMode="cover"
+          />
+        ) : businessName ? (
+          <View style={[styles.avatarCircle, { backgroundColor: themeColor }]}>
+            <Text style={styles.avatarInitials}>{businessInitials}</Text>
+          </View>
+        ) : user.avatarUrl ? (
           <Image
             source={{ uri: user.avatarUrl }}
             style={styles.avatarImage}
@@ -96,7 +122,7 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
           />
         ) : (
           <View style={[styles.avatarCircle, { backgroundColor: themeColor }]}>
-            <Text style={styles.avatarInitials}>{initials}</Text>
+            <Text style={styles.avatarInitials}>{personalInitials}</Text>
           </View>
         )}
 

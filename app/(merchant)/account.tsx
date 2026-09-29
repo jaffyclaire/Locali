@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import { useAuthRole } from "../../src/context/AuthRoleContext";
 import { Colors, Radius, Shadows } from "../../src/constants/theme";
 import { ChevronRight } from "../../src/components/icons/AppIcons";
 import { ProfileCard } from "../../src/components/common/ProfileCard";
+import { fetchMerchantByOwner } from "../../src/services/firestoreService";
 
 export default function MerchantAccountScreen() {
   const router = useRouter();
@@ -20,6 +21,19 @@ export default function MerchantAccountScreen() {
   const [proximityAlerts, setProximityAlerts] = useState(true);
   const [merchantAlerts, setMerchantAlerts] = useState(true);
   const [dealAlerts, setDealAlerts] = useState(false);
+  const [businessPhotoUrl, setBusinessPhotoUrl] = useState<string | undefined>(undefined);
+  const [businessName, setBusinessName] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    if (user?.uid) {
+      fetchMerchantByOwner(user.uid).then((m) => {
+        if (m) {
+          setBusinessPhotoUrl(m.coverPhotoUrl || m.img || undefined);
+          setBusinessName(m.name || undefined);
+        }
+      });
+    }
+  }, [user?.uid]);
 
   const handleSignOut = () => {
     signOut();
@@ -65,6 +79,8 @@ export default function MerchantAccountScreen() {
           <ProfileCard
             roleBadgeText="Merchant Owner"
             themeColor={Colors.teal[700]}
+            businessPhotoUrl={businessPhotoUrl}
+            businessName={businessName}
           />
 
           {/* Push Notifications Section */}
