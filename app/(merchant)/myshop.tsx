@@ -488,6 +488,28 @@ export default function MerchantMyShop() {
                 </View>
               </View>
             </View>
+
+            {/* Posts Feed */}
+            {posts.length > 0 && (
+              <View style={styles.previewPostsSection}>
+                <Text style={styles.previewPostsTitle}>Posts</Text>
+                {posts.map((post) => (
+                  <View key={post.id} style={styles.previewPostCard}>
+                    {post.image ? (
+                      <Image
+                        source={{ uri: post.image }}
+                        style={styles.previewPostImage}
+                        resizeMode="cover"
+                      />
+                    ) : null}
+                    <View style={styles.previewPostBody}>
+                      <Text style={styles.previewPostCaption}>{post.caption}</Text>
+                      <Text style={styles.previewPostType}>{post.type}</Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
           </ScrollView>
         </View>
       </SafeAreaView>
@@ -594,6 +616,32 @@ export default function MerchantMyShop() {
                   </View>
                 </View>
               </View>
+
+              {/* Current / Most Recent Post */}
+              {posts.length > 0 && (
+                <View style={styles.card}>
+                  <View style={styles.currentPostHeader}>
+                    <Text style={styles.currentPostTitle}>Current Post</Text>
+                    <TouchableOpacity
+                      onPress={() => setCreatePostVisible(true)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.currentPostEdit}>Edit</Text>
+                    </TouchableOpacity>
+                  </View>
+                  {posts[0].image ? (
+                    <Image
+                      source={{ uri: posts[0].image }}
+                      style={styles.currentPostImage}
+                      resizeMode="cover"
+                    />
+                  ) : null}
+                  <View style={styles.currentPostBody}>
+                    <Text style={styles.currentPostCaption}>{posts[0].caption}</Text>
+                    <Text style={styles.currentPostType}>{posts[0].type}</Text>
+                  </View>
+                </View>
+              )}
 
               {/* Editable Fields */}
               {[
@@ -1512,5 +1560,79 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.slate[50],
     textAlignVertical: "top",
     height: 80,
+  },
+  previewPostsSection: {
+    marginTop: 16,
+    gap: 12,
+  },
+  previewPostsTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: Colors.slate[800],
+  },
+  previewPostCard: {
+    backgroundColor: Colors.white,
+    borderRadius: Radius["2xl"],
+    borderWidth: 1,
+    borderColor: Colors.slate[100],
+    overflow: "hidden",
+    ...Shadows.sm,
+  },
+  previewPostImage: {
+    width: "100%",
+    height: 160,
+    backgroundColor: Colors.slate[100],
+  },
+  previewPostBody: {
+    padding: 12,
+  },
+  previewPostCaption: {
+    fontSize: 13,
+    color: Colors.slate[800],
+    lineHeight: 18,
+  },
+  previewPostType: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: Colors.teal[700],
+    textTransform: "capitalize",
+    marginTop: 4,
+  },
+  currentPostHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  currentPostTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: Colors.slate[800],
+  },
+  currentPostEdit: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: Colors.teal[700],
+  },
+  currentPostImage: {
+    width: "100%",
+    height: 140,
+    borderRadius: Radius.xl,
+    backgroundColor: Colors.slate[100],
+    marginBottom: 12,
+  },
+  currentPostBody: {
+    gap: 4,
+  },
+  currentPostCaption: {
+    fontSize: 14,
+    color: Colors.slate[800],
+    lineHeight: 19,
+  },
+  currentPostType: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: Colors.teal[700],
+    textTransform: "capitalize",
   },
 });
