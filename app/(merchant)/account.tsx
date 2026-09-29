@@ -126,10 +126,7 @@ export default function MerchantAccountScreen() {
           <View style={styles.cardSection}>
             <Text style={styles.sectionTitle}>BUSINESS & ACCOUNT</Text>
             {[
-              "Business Verification & KYC",
-              "Payouts & Billing",
               "Privacy & Data",
-              "Merchant Support",
               "Terms of Service",
             ].map((item, idx, arr) => (
               <TouchableOpacity
