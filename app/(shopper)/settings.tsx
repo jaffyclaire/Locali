@@ -105,8 +105,8 @@ export default function SettingsScreen() {
     [proximityAlerts, merchantAlerts, dealAlerts, user?.uid, registerPushToken]
   );
 
-  const handleSignOut = () => {
-    signOut();
+  const handleSignOut = async () => {
+    await signOut();
     router.replace("/(auth)/signin");
   };
 

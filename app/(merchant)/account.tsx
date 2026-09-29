@@ -35,8 +35,8 @@ export default function MerchantAccountScreen() {
     }
   }, [user?.uid]);
 
-  const handleSignOut = () => {
-    signOut();
+  const handleSignOut = async () => {
+    await signOut();
     router.replace("/(auth)/signin");
   };
 

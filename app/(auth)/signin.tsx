@@ -41,8 +41,10 @@ export default function SignInScreen() {
     try {
       setLoading(true);
       setErrorMessage("");
-      await signIn(email.trim(), password);
-      if (role === "merchant" || (role as string) === "merchant_owner") {
+      const resolvedRole = await signIn(email.trim(), password);
+      if (resolvedRole === "admin") {
+        router.replace("/(admin)/dashboard");
+      } else if (resolvedRole === "merchant" || (resolvedRole as string) === "merchant_owner") {
         router.replace("/(merchant)/dashboard");
       } else {
         router.replace("/(shopper)/home");

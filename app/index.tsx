@@ -19,6 +19,10 @@ export default function Index() {
     return <Redirect href="/(auth)/signin" />;
   }
 
+  if (role === "admin") {
+    return <Redirect href="/(admin)/dashboard" />;
+  }
+
   if (role === "merchant" || (role as string) === "merchant_owner") {
     return <Redirect href="/(merchant)/dashboard" />;
   }

@@ -23,7 +23,7 @@ interface AuthRoleContextType {
   isLoading: boolean;
   user: UserProfile;
   firebaseUser: FirebaseUser | null;
-  signIn: (email?: string, password?: string) => Promise<void>;
+  signIn: (email?: string, password?: string) => Promise<Role>;
   signUp: (
     email: string,
     password: string,
@@ -91,9 +91,21 @@ export const AuthRoleProvider: React.FC<{ children: ReactNode }> = ({
 
           if (docSnap.exists()) {
             const data = docSnap.data();
+            if (data.disabled) {
+              await firebaseSignOut(auth);
+              setIsAuthenticated(false);
+              setFirebaseUser(null);
+              setUser(defaultUser);
+              setRoleState("shopper");
+              setIsLoading(false);
+              return;
+            }
+
             const fullName = data.fullName || authUser.displayName || "User";
             const userRole: Role =
-              data.role === "merchant_owner" || data.role === "merchant"
+              data.role === "admin"
+                ? "admin"
+                : data.role === "merchant_owner" || data.role === "merchant"
                 ? "merchant"
                 : "shopper";
 
@@ -141,12 +153,90 @@ export const AuthRoleProvider: React.FC<{ children: ReactNode }> = ({
     return () => unsubscribe();
   }, []);
 
-  const signIn = async (email?: string, password?: string) => {
+  const signIn = async (email?: string, password?: string): Promise<Role> => {
     if (isFirebaseConfigured() && email && password) {
-      await signInWithEmailAndPassword(auth, email, password);
-    } else {
-      // Fallback for development before Firebase keys are populated
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      setFirebaseUser(userCredential.user);
       setIsAuthenticated(true);
+
+      try {
+        const userDocRef = doc(db, "users", userCredential.user.uid);
+        const docSnap = await getDoc(userDocRef);
+
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          if (data.disabled) {
+            await firebaseSignOut(auth);
+            setIsAuthenticated(false);
+            setFirebaseUser(null);
+            setUser(defaultUser);
+            setRoleState("shopper");
+            throw new Error("This account has been disabled. Please contact support.");
+          }
+
+          const fullName = data.fullName || userCredential.user.displayName || "User";
+          const userRole: Role =
+            data.role === "admin"
+              ? "admin"
+              : data.role === "merchant_owner" || data.role === "merchant"
+              ? "merchant"
+              : "shopper";
+
+          setRoleState(userRole);
+          setUser({
+            uid: userCredential.user.uid,
+            fullName,
+            name: fullName,
+            email: userCredential.user.email || data.email || "",
+            initials: getInitials(fullName),
+            avatarUrl: data.avatarUrl || "",
+            role: data.role || userRole,
+            interests: data.interests || [],
+            notificationPreferences: data.notificationPreferences || {
+              proximityAlerts: true,
+              merchantAlerts: true,
+              dealAlerts: false,
+            },
+            location: data.location || undefined,
+          });
+
+          return userRole;
+        } else {
+          const fallbackName = userCredential.user.displayName || userCredential.user.email?.split("@")[0] || "User";
+          setUser({
+            uid: userCredential.user.uid,
+            fullName: fallbackName,
+            name: fallbackName,
+            email: userCredential.user.email || "",
+            initials: getInitials(fallbackName),
+            role: "shopper",
+          });
+          setRoleState("shopper");
+          return "shopper";
+        }
+      } catch (err) {
+        if (err instanceof Error && err.message.includes("disabled")) {
+          throw err;
+        }
+        console.warn("Error fetching user profile during signIn:", err);
+        return role;
+      }
+    } else {
+      if (email === "merchant" || email === "merchant_owner") {
+        setRoleState("merchant");
+        setIsAuthenticated(true);
+        return "merchant";
+      } else if (email === "admin") {
+        setRoleState("admin");
+        setIsAuthenticated(true);
+        return "admin";
+      } else if (email === "shopper") {
+        setRoleState("shopper");
+        setIsAuthenticated(true);
+        return "shopper";
+      }
+      setIsAuthenticated(true);
+      return role;
     }
   };
 
