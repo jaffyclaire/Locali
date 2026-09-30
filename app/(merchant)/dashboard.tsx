@@ -168,7 +168,7 @@ export default function MerchantDashboard() {
               {merchant ? merchant.name : "Dashboard"}
             </Text>
             <Text style={styles.headerSubtitle}>
-              {merchant ? `${merchant.name} · ${merchant.category}` : "No business"}
+              {merchant ? (merchant.category || "General") : "No business"}
             </Text>
           </View>
           <View style={styles.headerRight}>
