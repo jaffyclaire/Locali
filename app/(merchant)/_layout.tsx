@@ -1,13 +1,14 @@
 import React from "react";
 import { Tabs, Redirect } from "expo-router";
-import { Platform, View, ActivityIndicator } from "react-native";
-import { Colors } from "../../src/constants/theme";
+import { Platform, View, ActivityIndicator, StyleSheet } from "react-native";
+import { Colors, Shadows } from "../../src/constants/theme";
 import { useAuthRole } from "../../src/context/AuthRoleContext";
 import {
   GridIcon,
   ShopIcon,
   ActivityIcon,
   PersonIcon,
+  PlusIcon,
 } from "../../src/components/icons/AppIcons";
 
 export default function MerchantTabsLayout() {
@@ -48,6 +49,7 @@ export default function MerchantTabsLayout() {
           height: Platform.OS === "ios" ? 84 : 64,
           paddingBottom: Platform.OS === "ios" ? 28 : 10,
           paddingTop: 8,
+          overflow: "visible",
         },
         tabBarLabelStyle: {
           fontSize: 11,
@@ -82,6 +84,19 @@ export default function MerchantTabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="create-post"
+        options={{
+          title: "",
+          tabBarLabel: () => null,
+          tabBarShowLabel: false,
+          tabBarIcon: () => (
+            <View style={styles.fabButton}>
+              <PlusIcon size={24} color={Colors.white} />
+            </View>
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="activity"
         options={{
           title: "Activity",
@@ -107,14 +122,23 @@ export default function MerchantTabsLayout() {
           ),
         }}
       />
-      <Tabs.Screen
-        name="create-post"
-        options={{
-          href: null,
-          tabBarStyle: { display: "none" },
-        }}
-      />
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  fabButton: {
+    top: Platform.OS === "ios" ? -14 : -18,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: Colors.teal[700],
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 3,
+    borderColor: Colors.white,
+    ...Shadows.md,
+    elevation: 6,
+  },
+});
 
