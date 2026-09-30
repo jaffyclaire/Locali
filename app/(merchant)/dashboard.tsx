@@ -9,7 +9,7 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Colors, Radius, Shadows } from "../../src/constants/theme";
 import { useAuthRole } from "../../src/context/AuthRoleContext";
@@ -18,6 +18,9 @@ import {
   LocationIcon,
   TagIcon,
   AlertTriangleIcon,
+  MegaphoneIcon,
+  PlusIcon,
+  RightArrowIcon,
 } from "../../src/components/icons/AppIcons";
 import {
   fetchMerchantByOwner,
@@ -97,6 +100,12 @@ export default function MerchantDashboard() {
   useEffect(() => {
     loadDashboardData();
   }, [loadDashboardData]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadDashboardData();
+    }, [loadDashboardData])
+  );
 
   const handleConfirmHours = async () => {
     if (!merchant) return;
@@ -389,18 +398,58 @@ export default function MerchantDashboard() {
                 )}
               </View>
 
+              {/* Create a Post CTA Card */}
+              <View style={styles.createPostCard}>
+                <View style={styles.createPostHeader}>
+                  <View style={styles.createPostIconWrap}>
+                    <MegaphoneIcon size={22} color={Colors.teal[700]} />
+                  </View>
+                  <View style={styles.createPostTextGroup}>
+                    <Text style={styles.createPostTitle}>Create a Post</Text>
+                    <Text style={styles.createPostSub}>
+                      Share deals, new arrivals, or updates directly with local shoppers.
+                    </Text>
+                  </View>
+                </View>
+                <TouchableOpacity
+                  style={styles.createPostButton}
+                  onPress={() => router.push("/(merchant)/create-post")}
+                  activeOpacity={0.85}
+                >
+                  <View style={styles.createPostButtonContent}>
+                    <PlusIcon size={16} color={Colors.white} />
+                    <Text style={styles.createPostButtonText}>Create a Post</Text>
+                  </View>
+                </TouchableOpacity>
+              </View>
+
               {/* Posts Feed */}
               <View style={styles.activitySection}>
-                <Text style={styles.sectionTitle}>Your Posts</Text>
+                <View style={styles.postsSectionHeader}>
+                  <Text style={styles.sectionTitle}>Your Posts</Text>
+                  <TouchableOpacity
+                    style={styles.headerNewPostBtn}
+                    onPress={() => router.push("/(merchant)/create-post")}
+                    activeOpacity={0.7}
+                  >
+                    <PlusIcon size={14} color={Colors.teal[700]} />
+                    <Text style={styles.headerNewPostBtnText}>New Post</Text>
+                  </TouchableOpacity>
+                </View>
                 {posts.length === 0 ? (
-                  <View style={styles.activityItemCard}>
+                  <TouchableOpacity
+                    style={styles.activityItemCard}
+                    onPress={() => router.push("/(merchant)/create-post")}
+                    activeOpacity={0.7}
+                  >
                     <TagIcon size={18} color={Colors.teal[600]} />
                     <View style={styles.activityTextGroup}>
                       <Text style={styles.activityText}>
-                        No posts yet. Tap "Promote Listing" in My Shop to create your first post.
+                        No posts yet. Tap here to create your first post.
                       </Text>
                     </View>
-                  </View>
+                    <RightArrowIcon size={16} color={Colors.slate[400]} />
+                  </TouchableOpacity>
                 ) : (
                   posts.map((post) => (
                     <View key={post.id} style={styles.postCard}>
@@ -876,6 +925,82 @@ const styles = StyleSheet.create({
     borderRadius: Radius.lg,
     backgroundColor: Colors.slate[100],
     marginRight: 8,
+  },
+  createPostCard: {
+    backgroundColor: Colors.teal[50],
+    borderRadius: Radius.xl,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: Colors.teal[100],
+    ...Shadows.sm,
+    marginBottom: 20,
+  },
+  createPostHeader: {
+    flexDirection: "row",
+    gap: 12,
+    alignItems: "flex-start",
+  },
+  createPostIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: Radius.lg,
+    backgroundColor: Colors.teal[100],
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  createPostTextGroup: {
+    flex: 1,
+  },
+  createPostTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: Colors.slate[900],
+    marginBottom: 4,
+  },
+  createPostSub: {
+    fontSize: 12,
+    color: Colors.slate[600],
+    lineHeight: 16,
+  },
+  createPostButton: {
+    backgroundColor: Colors.teal[700],
+    paddingVertical: 12,
+    borderRadius: Radius.lg,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 14,
+    ...Shadows.sm,
+  },
+  createPostButtonContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+  createPostButtonText: {
+    color: Colors.white,
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  postsSectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  headerNewPostBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.teal[50],
+  },
+  headerNewPostBtnText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: Colors.teal[700],
   },
 });
 
