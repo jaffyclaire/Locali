@@ -23,6 +23,7 @@ import {
   MegaphoneIcon,
   RightArrowIcon,
   BackArrowIcon,
+  BookmarkIcon,
 } from "../icons/AppIcons";
 import { openDirections } from "../../services/directionsService";
 import { useAuthRole } from "../../context/AuthRoleContext";
@@ -31,6 +32,8 @@ import {
   MerchantPost,
   submitMerchantReview,
   fetchUserMerchantReview,
+  getSavedMerchantIds,
+  toggleSaveMerchant,
 } from "../../services/firestoreService";
 
 interface MerchantSheetProps {
@@ -60,6 +63,8 @@ export const MerchantSheet: React.FC<MerchantSheetProps> = ({
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
   const [reviewSubmitted, setReviewSubmitted] = useState(false);
   const [hasExistingReview, setHasExistingReview] = useState(false);
+  const [isSaved, setIsSaved] = useState(false);
+  const [savingBookmark, setSavingBookmark] = useState(false);
 
   useEffect(() => {
     if (merchant?.id && visible) {
@@ -88,8 +93,28 @@ export const MerchantSheet: React.FC<MerchantSheetProps> = ({
           }
         })
         .catch((err) => console.warn("[MerchantSheet] fetchUserMerchantReview error:", err));
+
+      getSavedMerchantIds(user.uid)
+        .then((ids) => setIsSaved(ids.includes(String(merchant.id))))
+        .catch((err) => console.warn("[MerchantSheet] getSavedMerchantIds error:", err));
     }
   }, [merchant?.id, user?.uid, visible]);
+
+  const handleToggleSave = async () => {
+    if (!merchant || !user?.uid) {
+      Alert.alert("Sign In Required", "Please sign in to save this business.");
+      return;
+    }
+    setSavingBookmark(true);
+    try {
+      const nextSaved = await toggleSaveMerchant(user.uid, merchant.id, isSaved);
+      setIsSaved(nextSaved);
+    } catch (err) {
+      console.error("[MerchantSheet] handleToggleSave error:", err);
+    } finally {
+      setSavingBookmark(false);
+    }
+  };
 
   if (!merchant) return null;
 
@@ -164,6 +189,21 @@ export const MerchantSheet: React.FC<MerchantSheetProps> = ({
           <View style={styles.handleContainer}>
             <View style={styles.handle} />
           </View>
+
+          {/* Save / Bookmark button in header */}
+          <TouchableOpacity
+            style={styles.saveHeaderButton}
+            onPress={handleToggleSave}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            activeOpacity={0.7}
+            disabled={savingBookmark}
+          >
+            <BookmarkIcon
+              size={20}
+              active={isSaved}
+              color={isSaved ? Colors.amber[500] : Colors.slate[400]}
+            />
+          </TouchableOpacity>
 
           {/* Close button in header */}
           <TouchableOpacity
@@ -274,11 +314,25 @@ export const MerchantSheet: React.FC<MerchantSheetProps> = ({
               {/* Title & Status */}
               <View style={styles.titleRow}>
                 <Text style={styles.merchantName}>{merchant.name}</Text>
-                {merchant.isNew && (
-                  <View style={styles.newBadge}>
-                    <Text style={styles.newBadgeText}>New</Text>
-                  </View>
-                )}
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <TouchableOpacity
+                    onPress={handleToggleSave}
+                    activeOpacity={0.7}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    disabled={savingBookmark}
+                  >
+                    <BookmarkIcon
+                      size={22}
+                      active={isSaved}
+                      color={isSaved ? Colors.amber[500] : Colors.slate[400]}
+                    />
+                  </TouchableOpacity>
+                  {merchant.isNew && (
+                    <View style={styles.newBadge}>
+                      <Text style={styles.newBadgeText}>New</Text>
+                    </View>
+                  )}
+                </View>
               </View>
 
               <View style={styles.metaRow}>
@@ -615,6 +669,13 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 14,
     right: 18,
+    zIndex: 10,
+    padding: 6,
+  },
+  saveHeaderButton: {
+    position: "absolute",
+    top: 14,
+    right: 54,
     zIndex: 10,
     padding: 6,
   },

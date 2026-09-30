@@ -55,7 +55,8 @@ export default function SettingsScreen() {
   // Expo Go on Android SDK 53+).
   const registerPushToken = useCallback(async () => {
     try {
-      const { status } = await Notifications.requestPermissionsAsync();
+      const perm = await Notifications.requestPermissionsAsync();
+      const status = (perm as any).status ?? (perm.granted ? "granted" : "denied");
       if (status !== "granted") {
         console.log("[Settings] Notification permission not granted:", status);
         return;

@@ -212,3 +212,16 @@ export const RightArrowIcon: React.FC<IconProps> = ({ size = 16, color = Colors.
   </Svg>
 );
 
+export const BookmarkIcon: React.FC<IconProps> = ({ size = 20, active = false, color, ...props }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill={active ? (color || Colors.amber[500]) : "none"} stroke={color || (active ? Colors.amber[500] : Colors.slate[400])} strokeWidth={2} {...props}>
+    <Path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z" />
+  </Svg>
+);
+
+export const ImageIcon: React.FC<IconProps> = ({ size = 20, color = Colors.slate[400], ...props }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill={color} {...props}>
+    <Path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z" />
+  </Svg>
+);
+
+

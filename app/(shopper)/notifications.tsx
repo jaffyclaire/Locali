@@ -1,47 +1,92 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
   TouchableOpacity,
   ScrollView,
   StyleSheet,
+  Image,
+  ActivityIndicator,
+  RefreshControl,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { NotificationItem } from "../../src/types";
+import { NotificationItem, MapMerchant, Merchant } from "../../src/types";
 import { Colors, Radius, Shadows } from "../../src/constants/theme";
-import { fetchUserNotifications } from "../../src/services/firestoreService";
+import {
+  fetchUserNotifications,
+  fetchSavedMerchantsWithDetails,
+} from "../../src/services/firestoreService";
 import { useAuthRole } from "../../src/context/AuthRoleContext";
+import { StarIcon, BookmarkIcon } from "../../src/components/icons/AppIcons";
+import { MerchantSheet } from "../../src/components/common/MerchantSheet";
 
 export default function NotificationsScreen() {
   const [activeTab, setActiveTab] = useState<"Updates" | "Saved Deals">("Updates");
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [savedMerchants, setSavedMerchants] = useState<MapMerchant[]>([]);
   const [loading, setLoading] = useState(true);
+  const [savedLoading, setSavedLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [selectedMerchant, setSelectedMerchant] = useState<Merchant | null>(null);
   const { user } = useAuthRole();
 
-  useEffect(() => {
-    const loadNotifications = async () => {
-      if (!user?.uid) {
-        console.log("[NotificationsScreen] No user uid — skipping fetch");
-        setLoading(false);
-        return;
-      }
-      setLoading(true);
-      try {
-        const data = await fetchUserNotifications(user.uid);
-        console.log("[NotificationsScreen] Fetched notifications:", data.length);
-        setNotifications(data);
-      } catch (error) {
-        console.error("[NotificationsScreen] Error loading notifications:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    loadNotifications();
+  const loadNotifications = useCallback(async () => {
+    if (!user?.uid) {
+      console.log("[NotificationsScreen] No user uid — skipping fetch");
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    try {
+      const data = await fetchUserNotifications(user.uid);
+      console.log("[NotificationsScreen] Fetched notifications:", data.length);
+      setNotifications(data);
+    } catch (error) {
+      console.error("[NotificationsScreen] Error loading notifications:", error);
+    } finally {
+      setLoading(false);
+    }
   }, [user?.uid]);
 
-  const items = notifications.filter((n) => n.tab === activeTab);
+  const loadSavedMerchants = useCallback(async () => {
+    if (!user?.uid) {
+      setSavedLoading(false);
+      return;
+    }
+    setSavedLoading(true);
+    try {
+      const data = await fetchSavedMerchantsWithDetails(user.uid);
+      setSavedMerchants(data);
+    } catch (error) {
+      console.error("[NotificationsScreen] Error loading saved merchants:", error);
+    } finally {
+      setSavedLoading(false);
+    }
+  }, [user?.uid]);
 
-  console.log("[NotificationsScreen] loading:", loading, "notifications:", notifications.length, "filtered:", items.length);
+  useEffect(() => {
+    loadNotifications();
+  }, [loadNotifications]);
+
+  useEffect(() => {
+    if (activeTab === "Saved Deals") {
+      loadSavedMerchants();
+    }
+  }, [activeTab, loadSavedMerchants]);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    if (activeTab === "Saved Deals") {
+      await loadSavedMerchants();
+    } else {
+      await loadNotifications();
+    }
+    setRefreshing(false);
+  };
+
+  const updateItems = notifications.filter((n) => n.tab === "Updates");
+
+  console.log("[NotificationsScreen] loading:", loading, "notifications:", notifications.length, "filtered:", updateItems.length);
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
@@ -70,40 +115,144 @@ export default function NotificationsScreen() {
           </View>
         </View>
 
-        {/* List */}
+        {/* Content List */}
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.listContent}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={Colors.teal[700]}
+              colors={[Colors.teal[700]]}
+            />
+          }
         >
-          {items.map((n) => (
-              <View
-                key={n.id}
-                style={[
-                  styles.notificationCard,
-                  n.unread && styles.unreadCard,
-                ]}
-              >
+          {activeTab === "Updates" ? (
+            /* ── UPDATES TAB ── */
+            loading ? (
+              <View style={styles.loadingBox}>
+                <ActivityIndicator size="small" color={Colors.teal[700]} />
+                <Text style={styles.loadingText}>Loading updates…</Text>
+              </View>
+            ) : updateItems.length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyEmoji}>🔔</Text>
+                <Text style={styles.emptyTitle}>No updates yet</Text>
+                <Text style={styles.emptySub}>
+                  You're all caught up! Updates about local deals and community alerts will appear here.
+                </Text>
+              </View>
+            ) : (
+              updateItems.map((n) => (
                 <View
+                  key={n.id}
                   style={[
-                    styles.iconCircle,
-                    n.unread ? styles.iconCircleUnread : styles.iconCircleRead,
+                    styles.notificationCard,
+                    n.unread && styles.unreadCard,
                   ]}
                 >
-                  <Text style={styles.notificationEmoji}>{n.icon}</Text>
-                </View>
-
-                <View style={styles.cardContent}>
-                  <View style={styles.cardTitleRow}>
-                    <Text style={styles.cardTitle}>{n.title}</Text>
-                    {n.unread && <View style={styles.unreadDot} />}
+                  <View
+                    style={[
+                      styles.iconCircle,
+                      n.unread ? styles.iconCircleUnread : styles.iconCircleRead,
+                    ]}
+                  >
+                    <Text style={styles.notificationEmoji}>{n.icon}</Text>
                   </View>
-                  <Text style={styles.cardBody}>{n.body}</Text>
-                  <Text style={styles.cardTime}>{n.time}</Text>
+
+                  <View style={styles.cardContent}>
+                    <View style={styles.cardTitleRow}>
+                      <Text style={styles.cardTitle}>{n.title}</Text>
+                      {n.unread && <View style={styles.unreadDot} />}
+                    </View>
+                    <Text style={styles.cardBody}>{n.body}</Text>
+                    <Text style={styles.cardTime}>{n.time}</Text>
+                  </View>
                 </View>
+              ))
+            )
+          ) : (
+            /* ── SAVED DEALS (SAVED MERCHANTS) TAB ── */
+            savedLoading ? (
+              <View style={styles.loadingBox}>
+                <ActivityIndicator size="small" color={Colors.teal[700]} />
+                <Text style={styles.loadingText}>Loading saved businesses…</Text>
               </View>
-            ))}
-          <View style={{ height: 24 }} />
+            ) : savedMerchants.length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyEmoji}>⭐</Text>
+                <Text style={styles.emptyTitle}>No saved businesses yet</Text>
+                <Text style={styles.emptySub}>
+                  Tap the bookmark star icon on any business info card in Discover or Home to save it here for fast access!
+                </Text>
+              </View>
+            ) : (
+              savedMerchants.map((m) => (
+                <TouchableOpacity
+                  key={m.id}
+                  style={styles.savedCard}
+                  onPress={() => setSelectedMerchant(m)}
+                  activeOpacity={0.85}
+                >
+                  <Image
+                    source={{ uri: m.img }}
+                    style={styles.savedAvatar}
+                    resizeMode="cover"
+                  />
+                  <View style={styles.savedBody}>
+                    <View style={styles.savedTitleRow}>
+                      <Text style={styles.savedName} numberOfLines={1}>
+                        {m.name}
+                      </Text>
+                      <BookmarkIcon size={18} active={true} color={Colors.amber[500]} />
+                    </View>
+
+                    <Text style={styles.savedCategory}>
+                      {m.category} · {m.distance || "Nearby"}
+                    </Text>
+
+                    <View style={styles.savedMetaRow}>
+                      <View
+                        style={[
+                          styles.statusBadge,
+                          m.isOpen ? styles.openBadge : styles.closedBadge,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.statusText,
+                            m.isOpen ? styles.openText : styles.closedText,
+                          ]}
+                        >
+                          {m.isOpen ? "Open" : "Closed"}
+                        </Text>
+                      </View>
+
+                      <View style={styles.ratingBadge}>
+                        <StarIcon size={12} color={Colors.amber[500]} />
+                        <Text style={styles.ratingText}>
+                          {m.rating > 0 ? `${m.rating} (${m.reviews})` : "No rating"}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              ))
+            )
+          )}
+          <View style={{ height: 32 }} />
         </ScrollView>
+
+        {/* Merchant info sheet when tapping saved business */}
+        <MerchantSheet
+          merchant={selectedMerchant}
+          visible={!!selectedMerchant}
+          onClose={() => {
+            setSelectedMerchant(null);
+            loadSavedMerchants();
+          }}
+        />
       </View>
     </SafeAreaView>
   );
@@ -117,14 +266,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.slate[50],
-  },
-  emptyContainer: {
-    paddingVertical: 60,
-    alignItems: "center",
-  },
-  emptyText: {
-    fontSize: 14,
-    color: Colors.slate[500],
   },
   header: {
     backgroundColor: Colors.white,
@@ -227,5 +368,108 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: Colors.slate[400],
     marginTop: 6,
+  },
+  loadingBox: {
+    paddingVertical: 48,
+    alignItems: "center",
+    gap: 10,
+  },
+  loadingText: {
+    fontSize: 13,
+    color: Colors.slate[500],
+  },
+  emptyContainer: {
+    paddingVertical: 50,
+    paddingHorizontal: 24,
+    alignItems: "center",
+    gap: 8,
+  },
+  emptyEmoji: {
+    fontSize: 36,
+    marginBottom: 4,
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: Colors.slate[800],
+  },
+  emptySub: {
+    fontSize: 13,
+    color: Colors.slate[500],
+    textAlign: "center",
+    lineHeight: 18,
+  },
+  savedCard: {
+    backgroundColor: Colors.white,
+    borderRadius: Radius.xl,
+    padding: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    borderWidth: 1,
+    borderColor: Colors.slate[100],
+    ...Shadows.sm,
+  },
+  savedAvatar: {
+    width: 60,
+    height: 60,
+    borderRadius: Radius.lg,
+    backgroundColor: Colors.slate[100],
+  },
+  savedBody: {
+    flex: 1,
+  },
+  savedTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 2,
+  },
+  savedName: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: Colors.slate[900],
+    flex: 1,
+    paddingRight: 6,
+  },
+  savedCategory: {
+    fontSize: 12,
+    color: Colors.slate[500],
+    marginBottom: 6,
+  },
+  savedMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: Radius.full,
+  },
+  openBadge: {
+    backgroundColor: Colors.emerald[50],
+  },
+  closedBadge: {
+    backgroundColor: Colors.slate[100],
+  },
+  statusText: {
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  openText: {
+    color: Colors.emerald[700],
+  },
+  closedText: {
+    color: Colors.slate[500],
+  },
+  ratingBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+  },
+  ratingText: {
+    fontSize: 11,
+    color: Colors.slate[500],
   },
 });
