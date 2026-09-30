@@ -180,11 +180,26 @@ export default function MerchantDashboard() {
                 </View>
               </View>
             )}
-            <View style={styles.businessAvatar}>
-              <Text style={styles.businessAvatarText}>
-                {getInitials(merchant?.name)}
-              </Text>
-            </View>
+            {merchant?.coverPhotoUrl || merchant?.img || (merchant?.photos && merchant.photos[0]) || user?.avatarUrl ? (
+              <Image
+                source={{
+                  uri:
+                    merchant?.coverPhotoUrl ||
+                    merchant?.img ||
+                    merchant?.photos?.[0] ||
+                    user?.avatarUrl ||
+                    "",
+                }}
+                style={styles.businessAvatar}
+                resizeMode="cover"
+              />
+            ) : (
+              <View style={styles.businessAvatar}>
+                <Text style={styles.businessAvatarText}>
+                  {getInitials(merchant?.name)}
+                </Text>
+              </View>
+            )}
           </View>
         </View>
 
@@ -581,6 +596,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(15, 118, 110, 0.15)",
     alignItems: "center",
     justifyContent: "center",
+    overflow: "hidden",
   },
   businessAvatarText: {
     fontSize: 13,
