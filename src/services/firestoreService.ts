@@ -1324,18 +1324,26 @@ export interface MerchantPost {
 
 export const createMerchantPost = async (
   merchantId: string,
-  data: { image: string; caption: string; type?: string }
+  data: { image?: string; images?: string[]; caption: string; type?: string }
 ): Promise<string | null> => {
   if (!isFirebaseConfigured() || !merchantId) return null;
   try {
+    const rawImages = data.images && data.images.length > 0
+      ? data.images
+      : data.image ? [data.image] : [];
+    const primaryImage = rawImages[0] || data.image || "";
+    const postData: Record<string, any> = {
+      image: primaryImage,
+      caption: data.caption,
+      type: data.type || "promo",
+      createdAt: serverTimestamp(),
+    };
+    if (rawImages.length > 0) {
+      postData.images = rawImages;
+    }
     const docRef = await addDoc(
       collection(db, "merchants", String(merchantId), "posts"),
-      {
-        image: data.image,
-        caption: data.caption,
-        type: data.type || "promo",
-        createdAt: serverTimestamp(),
-      }
+      postData
     );
     return docRef.id;
   } catch (err) {

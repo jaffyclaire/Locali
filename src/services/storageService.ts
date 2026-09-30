@@ -38,6 +38,33 @@ export const pickImageFromGallery = async (): Promise<string | null> => {
 };
 
 /**
+ * Pick multiple images from device gallery for posts
+ */
+export const pickMultipleImagesFromGallery = async (): Promise<string[]> => {
+  try {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      alert("Permission to access photo gallery is required.");
+      return [];
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      allowsMultipleSelection: true,
+      quality: 0.8,
+    });
+
+    if (!result.canceled && result.assets && result.assets.length > 0) {
+      return result.assets.map((a) => a.uri);
+    }
+    return [];
+  } catch (err) {
+    console.error("pickMultipleImagesFromGallery error:", err);
+    return [];
+  }
+};
+
+/**
  * Pick an avatar image with 1:1 aspect ratio
  */
 export const pickAvatarImage = async (): Promise<string | null> => {

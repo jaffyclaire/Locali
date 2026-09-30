@@ -404,7 +404,22 @@ export default function MerchantDashboard() {
                 ) : (
                   posts.map((post) => (
                     <View key={post.id} style={styles.postCard}>
-                      {post.image ? (
+                      {post.images && post.images.length > 1 ? (
+                        <ScrollView
+                          horizontal
+                          showsHorizontalScrollIndicator={false}
+                          contentContainerStyle={styles.postMultiImageContainer}
+                        >
+                          {post.images.map((imgUri, idx) => (
+                            <Image
+                              key={idx}
+                              source={{ uri: imgUri }}
+                              style={styles.postCarouselImage}
+                              resizeMode="cover"
+                            />
+                          ))}
+                        </ScrollView>
+                      ) : post.image ? (
                         <Image
                           source={{ uri: post.image }}
                           style={styles.postImage}
@@ -850,6 +865,17 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "600",
     color: Colors.rose[500],
+  },
+  postMultiImageContainer: {
+    padding: 8,
+    gap: 8,
+  },
+  postCarouselImage: {
+    width: 200,
+    height: 140,
+    borderRadius: Radius.lg,
+    backgroundColor: Colors.slate[100],
+    marginRight: 8,
   },
 });
 

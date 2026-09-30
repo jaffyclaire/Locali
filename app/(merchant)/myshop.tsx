@@ -25,6 +25,7 @@ import {
   RightArrowIcon,
   CloseIcon,
   CheckIcon,
+  PhotoUploadIcon,
 } from "../../src/components/icons/AppIcons";
 import { HolidayClosureCard } from "../../src/components/common/HolidayClosureCard";
 import { LocationPicker } from "../../src/components/common/LocationPicker";
@@ -41,6 +42,7 @@ import {
 } from "../../src/services/firestoreService";
 import {
   pickImageFromGallery,
+  pickMultipleImagesFromGallery,
   uploadImageAsync,
 } from "../../src/services/storageService";
 import { Merchant, OperatingHoursDay } from "../../src/types";
@@ -97,7 +99,7 @@ export default function MerchantMyShop() {
   const [posts, setPosts] = useState<MerchantPost[]>([]);
   const [createPostVisible, setCreatePostVisible] = useState(false);
   const [postCaption, setPostCaption] = useState("");
-  const [postImageUri, setPostImageUri] = useState<string | null>(null);
+  const [postImageUris, setPostImageUris] = useState<string[]>([]);
   const [creatingPost, setCreatingPost] = useState(false);
 
   const loadMerchant = useCallback(async (isPull = false) => {
@@ -370,28 +372,39 @@ export default function MerchantMyShop() {
     }
   };
 
-  const handlePickPostImage = async () => {
-    const uri = await pickImageFromGallery();
-    if (uri) {
-      setPostImageUri(uri);
+  const handlePickPostImages = async () => {
+    const uris = await pickMultipleImagesFromGallery();
+    if (uris.length > 0) {
+      setPostImageUris((prev) => [...prev, ...uris]);
     }
   };
 
+  const handleRemovePostImage = (idxToRemove: number) => {
+    setPostImageUris((prev) => prev.filter((_, idx) => idx !== idxToRemove));
+  };
+
   const handleCreatePost = async () => {
-    if (!merchant || !postImageUri || !postCaption.trim()) return;
+    if (!merchant) return;
+    if (!postCaption.trim() && postImageUris.length === 0) return;
     setCreatingPost(true);
     try {
-      const remotePath = `merchants/${merchant.id}/posts/${Date.now()}.jpg`;
-      const downloadUrl = await uploadImageAsync(postImageUri, remotePath);
+      const uploadedUrls: string[] = [];
+      for (let i = 0; i < postImageUris.length; i++) {
+        const uri = postImageUris[i];
+        const remotePath = `merchants/${merchant.id}/posts/${Date.now()}_${i}.jpg`;
+        const downloadUrl = await uploadImageAsync(uri, remotePath);
+        uploadedUrls.push(downloadUrl);
+      }
       await createMerchantPost(String(merchant.id), {
-        image: downloadUrl,
+        image: uploadedUrls[0] || "",
+        images: uploadedUrls,
         caption: postCaption.trim(),
         type: "promo",
       });
       const newPosts = await fetchMerchantPosts(String(merchant.id));
       setPosts(newPosts);
       setPostCaption("");
-      setPostImageUri(null);
+      setPostImageUris([]);
       setCreatePostVisible(false);
     } catch (err) {
       console.error("handleCreatePost error:", err);
@@ -495,7 +508,22 @@ export default function MerchantMyShop() {
                 <Text style={styles.previewPostsTitle}>Posts</Text>
                 {posts.map((post) => (
                   <View key={post.id} style={styles.previewPostCard}>
-                    {post.image ? (
+                    {post.images && post.images.length > 1 ? (
+                      <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={styles.previewMultiImageScroll}
+                      >
+                        {post.images.map((imgUri, idx) => (
+                          <Image
+                            key={idx}
+                            source={{ uri: imgUri }}
+                            style={styles.previewCarouselImage}
+                            resizeMode="cover"
+                          />
+                        ))}
+                      </ScrollView>
+                    ) : post.image ? (
                       <Image
                         source={{ uri: post.image }}
                         style={styles.previewPostImage}
@@ -629,7 +657,22 @@ export default function MerchantMyShop() {
                       <Text style={styles.currentPostEdit}>Edit</Text>
                     </TouchableOpacity>
                   </View>
-                  {posts[0].image ? (
+                  {posts[0].images && posts[0].images.length > 1 ? (
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={styles.currentPostMultiImageScroll}
+                    >
+                      {posts[0].images.map((imgUri, idx) => (
+                        <Image
+                          key={idx}
+                          source={{ uri: imgUri }}
+                          style={styles.currentPostCarouselImage}
+                          resizeMode="cover"
+                        />
+                      ))}
+                    </ScrollView>
+                  ) : posts[0].image ? (
                     <Image
                       source={{ uri: posts[0].image }}
                       style={styles.currentPostImage}
@@ -947,76 +990,122 @@ export default function MerchantMyShop() {
         </View>
       </Modal>
 
-      {/* Create Post Modal */}
+      {/* Create Post Modal (Simplified Facebook-Style Composer) */}
       <Modal
         visible={createPostVisible}
         transparent
-        animationType="fade"
+        animationType="slide"
         onRequestClose={() => setCreatePostVisible(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Create Post</Text>
+          <View style={styles.fbComposerCard}>
+            {/* Modal Title & Close X */}
+            <View style={styles.fbComposerHeader}>
+              <View style={{ width: 24 }} />
+              <Text style={styles.fbComposerTitle}>Create post</Text>
               <TouchableOpacity
                 onPress={() => setCreatePostVisible(false)}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                style={styles.fbCloseCircle}
               >
-                <CloseIcon size={18} color={Colors.slate[400]} />
+                <CloseIcon size={18} color={Colors.slate[600]} />
               </TouchableOpacity>
             </View>
 
+            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 400 }}>
+              {/* Business Header: Avatar + Business Name */}
+              <View style={styles.fbBusinessHeader}>
+                {merchant?.coverPhotoUrl || (merchant?.photos && merchant.photos[0]) ? (
+                  <Image
+                    source={{ uri: merchant.coverPhotoUrl || merchant.photos?.[0] }}
+                    style={styles.fbBusinessAvatar}
+                  />
+                ) : (
+                  <View style={styles.fbBusinessAvatarPlaceholder}>
+                    <Text style={styles.fbAvatarInitial}>
+                      {(merchant?.name || "M").charAt(0).toUpperCase()}
+                    </Text>
+                  </View>
+                )}
+                <View>
+                  <Text style={styles.fbBusinessName}>
+                    {merchant?.name || "Your Business"}
+                  </Text>
+                  <View style={styles.fbPublicBadge}>
+                    <Text style={styles.fbPublicBadgeText}>Public</Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* Single Open Text Area */}
+              <TextInput
+                style={styles.fbCaptionInput}
+                value={postCaption}
+                onChangeText={setPostCaption}
+                placeholder={`What's on your mind, ${merchant?.name || "your business"}?`}
+                placeholderTextColor={Colors.slate[400]}
+                multiline
+                numberOfLines={3}
+              />
+
+              {/* Photos Preview Grid / Row */}
+              {postImageUris.length > 0 && (
+                <View style={styles.fbSelectedPhotosSection}>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.fbPhotoThumbnailsRow}
+                  >
+                    {postImageUris.map((uri, idx) => (
+                      <View key={idx} style={styles.fbThumbnailWrap}>
+                        <Image source={{ uri }} style={styles.fbThumbnail} resizeMode="cover" />
+                        <TouchableOpacity
+                          style={styles.fbRemovePhotoBtn}
+                          onPress={() => handleRemovePostImage(idx)}
+                          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                        >
+                          <CloseIcon size={12} color={Colors.white} />
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
+
+              {/* "Add Photos" area (dashed border box with photo icon) */}
+              <TouchableOpacity
+                style={styles.fbAddPhotosBox}
+                onPress={handlePickPostImages}
+                activeOpacity={0.8}
+              >
+                <View style={styles.fbAddPhotosIconWrap}>
+                  <PhotoUploadIcon size={22} color={Colors.emerald[600]} />
+                </View>
+                <View>
+                  <Text style={styles.fbAddPhotosTitle}>
+                    {postImageUris.length > 0 ? "Add more photos" : "Add photos"}
+                  </Text>
+                  <Text style={styles.fbAddPhotosSub}>Select multiple photos for your post</Text>
+                </View>
+              </TouchableOpacity>
+            </ScrollView>
+
+            {/* Post button at bottom (disabled until caption or photo added) */}
             <TouchableOpacity
-              style={styles.postImagePicker}
-              onPress={handlePickPostImage}
-              activeOpacity={0.8}
+              style={[
+                styles.fbPostButton,
+                (!postCaption.trim() && postImageUris.length === 0) && styles.fbPostButtonDisabled,
+              ]}
+              onPress={handleCreatePost}
+              disabled={creatingPost || (!postCaption.trim() && postImageUris.length === 0)}
+              activeOpacity={0.85}
             >
-              {postImageUri ? (
-                <Image
-                  source={{ uri: postImageUri }}
-                  style={styles.postImagePreview}
-                  resizeMode="cover"
-                />
+              {creatingPost ? (
+                <ActivityIndicator size="small" color={Colors.white} />
               ) : (
-                <Text style={styles.postImagePickerText}>
-                  Tap to add photo
-                </Text>
+                <Text style={styles.fbPostButtonText}>Post</Text>
               )}
             </TouchableOpacity>
-
-            <TextInput
-              style={styles.postCaptionInput}
-              value={postCaption}
-              onChangeText={setPostCaption}
-              placeholder="Write a caption…"
-              placeholderTextColor={Colors.slate[400]}
-              multiline
-              numberOfLines={3}
-            />
-
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={styles.modalCancelButton}
-                onPress={() => setCreatePostVisible(false)}
-                disabled={creatingPost}
-              >
-                <Text style={styles.modalCancelText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.modalSaveButton,
-                  (!postImageUri || !postCaption.trim()) && { opacity: 0.5 },
-                ]}
-                onPress={handleCreatePost}
-                disabled={creatingPost || !postImageUri || !postCaption.trim()}
-              >
-                {creatingPost ? (
-                  <ActivityIndicator size="small" color={Colors.white} />
-                ) : (
-                  <Text style={styles.modalSaveText}>Post</Text>
-                )}
-              </TouchableOpacity>
-            </View>
           </View>
         </View>
       </Modal>
@@ -1634,5 +1723,181 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: Colors.teal[700],
     textTransform: "capitalize",
+  },
+  fbComposerCard: {
+    backgroundColor: Colors.white,
+    borderRadius: Radius["2xl"],
+    width: "100%",
+    maxWidth: 420,
+    padding: 16,
+    ...Shadows.lg,
+  },
+  fbComposerHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.slate[100],
+  },
+  fbComposerTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: Colors.slate[900],
+  },
+  fbCloseCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: Colors.slate[100],
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  fbBusinessHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginTop: 14,
+    marginBottom: 10,
+  },
+  fbBusinessAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.slate[100],
+  },
+  fbBusinessAvatarPlaceholder: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.teal[700],
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  fbAvatarInitial: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: Colors.white,
+  },
+  fbBusinessName: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: Colors.slate[900],
+  },
+  fbPublicBadge: {
+    alignSelf: "flex-start",
+    backgroundColor: Colors.slate[100],
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: Radius.full,
+    marginTop: 2,
+  },
+  fbPublicBadgeText: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: Colors.slate[600],
+  },
+  fbCaptionInput: {
+    fontSize: 15,
+    color: Colors.slate[900],
+    minHeight: 80,
+    textAlignVertical: "top",
+    paddingVertical: 8,
+  },
+  fbSelectedPhotosSection: {
+    marginVertical: 8,
+  },
+  fbPhotoThumbnailsRow: {
+    gap: 8,
+    paddingVertical: 4,
+  },
+  fbThumbnailWrap: {
+    position: "relative",
+    width: 72,
+    height: 72,
+    borderRadius: Radius.lg,
+    overflow: "hidden",
+  },
+  fbThumbnail: {
+    width: "100%",
+    height: "100%",
+    borderRadius: Radius.lg,
+  },
+  fbRemovePhotoBtn: {
+    position: "absolute",
+    top: 4,
+    right: 4,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  fbAddPhotosBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    borderWidth: 1.5,
+    borderColor: Colors.slate[200],
+    borderStyle: "dashed",
+    borderRadius: Radius.xl,
+    padding: 12,
+    backgroundColor: Colors.slate[50],
+    marginTop: 8,
+    marginBottom: 16,
+  },
+  fbAddPhotosIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: Colors.emerald[50],
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  fbAddPhotosTitle: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: Colors.slate[800],
+  },
+  fbAddPhotosSub: {
+    fontSize: 11,
+    color: Colors.slate[500],
+  },
+  fbPostButton: {
+    backgroundColor: Colors.teal[700],
+    paddingVertical: 12,
+    borderRadius: Radius.lg,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  fbPostButtonDisabled: {
+    backgroundColor: Colors.slate[300],
+  },
+  fbPostButtonText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: Colors.white,
+  },
+  previewMultiImageScroll: {
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingTop: 12,
+  },
+  previewCarouselImage: {
+    width: 200,
+    height: 160,
+    borderRadius: Radius.lg,
+    backgroundColor: Colors.slate[100],
+  },
+  currentPostMultiImageScroll: {
+    gap: 8,
+    marginBottom: 12,
+  },
+  currentPostCarouselImage: {
+    width: 180,
+    height: 130,
+    borderRadius: Radius.lg,
+    backgroundColor: Colors.slate[100],
   },
 });
