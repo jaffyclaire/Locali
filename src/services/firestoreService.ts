@@ -1319,12 +1319,19 @@ export interface MerchantPost {
   images?: string[];
   caption: string;
   type: string;
+  isPromoted?: boolean;
   createdAt: any;
 }
 
 export const createMerchantPost = async (
   merchantId: string,
-  data: { image?: string; images?: string[]; caption: string; type?: string }
+  data: {
+    image?: string;
+    images?: string[];
+    caption: string;
+    type?: string;
+    isPromoted?: boolean;
+  }
 ): Promise<string | null> => {
   if (!isFirebaseConfigured() || !merchantId) return null;
   try {
@@ -1332,10 +1339,12 @@ export const createMerchantPost = async (
       ? data.images
       : data.image ? [data.image] : [];
     const primaryImage = rawImages[0] || data.image || "";
+    const isPromoted = Boolean(data.isPromoted ?? (data.type === "promo"));
     const postData: Record<string, any> = {
       image: primaryImage,
       caption: data.caption,
-      type: data.type || "promo",
+      type: isPromoted ? "promo" : (data.type && data.type !== "promo" ? data.type : "post"),
+      isPromoted: isPromoted,
       createdAt: serverTimestamp(),
     };
     if (rawImages.length > 0) {
@@ -1367,20 +1376,29 @@ export const fetchMerchantPosts = async (
         : typeof data.image === "string" && data.image
         ? [data.image]
         : [];
+      const isPromoted = Boolean(
+        data.isPromoted === true || (data.isPromoted !== false && data.type === "promo")
+      );
       return {
         id: d.id,
         image: rawImages[0] || data.image || "",
         images: rawImages,
         caption: data.caption || "",
-        type: data.type || "promo",
+        type: isPromoted ? "promo" : (data.type && data.type !== "promo" ? data.type : "post"),
+        isPromoted,
         createdAt: data.createdAt,
       };
     });
     // Sort by createdAt descending (most recent first)
     posts.sort((a, b) => {
-      const timeA = a.createdAt?.toMillis?.() || 0;
-      const timeB = b.createdAt?.toMillis?.() || 0;
-      return timeB - timeA;
+      const getMillis = (dateObj: any) => {
+        if (!dateObj) return Date.now();
+        if (typeof dateObj.toMillis === "function") return dateObj.toMillis();
+        if (dateObj instanceof Date) return dateObj.getTime();
+        if (typeof dateObj.seconds === "number") return dateObj.seconds * 1000;
+        return Date.now();
+      };
+      return getMillis(b.createdAt) - getMillis(a.createdAt);
     });
     return posts;
   } catch (err) {

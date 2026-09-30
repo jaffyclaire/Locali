@@ -277,9 +277,19 @@ export const MerchantSheet: React.FC<MerchantSheetProps> = ({
 
                       <View style={styles.sheetPostBody}>
                         <View style={styles.sheetPostMetaRow}>
-                          <View style={styles.postTypeBadge}>
-                            <Text style={styles.postTypeBadgeText}>
-                              {post.type || "Promo"}
+                          <View
+                            style={[
+                              styles.postTypeBadge,
+                              (post.isPromoted || post.type === "promo") && styles.postTypeBadgePromo,
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.postTypeBadgeText,
+                                (post.isPromoted || post.type === "promo") && styles.postTypeBadgePromoText,
+                              ]}
+                            >
+                              {post.isPromoted || post.type === "promo" ? "Promo" : "Post"}
                             </Text>
                           </View>
                           {post.createdAt?.toDate && (
@@ -1147,6 +1157,12 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: Colors.teal[700],
     textTransform: "capitalize",
+  },
+  postTypeBadgePromo: {
+    backgroundColor: Colors.amber[100],
+  },
+  postTypeBadgePromoText: {
+    color: Colors.amber[800],
   },
   sheetPostDate: {
     fontSize: 11,

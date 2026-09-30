@@ -12,7 +12,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Colors, Radius, Shadows } from "../../src/constants/theme";
 import { useAuthRole } from "../../src/context/AuthRoleContext";
@@ -32,6 +32,8 @@ import { Merchant } from "../../src/types";
 
 export default function CreatePostScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ isPromoted?: string }>();
+  const isPromoted = params.isPromoted === "true";
   const { user } = useAuthRole();
 
   const [merchant, setMerchant] = useState<Merchant | null>(null);
@@ -96,7 +98,8 @@ export default function CreatePostScreen() {
       await createMerchantPost(String(merchant.id), {
         images: uploadedUrls,
         caption: postCaption.trim(),
-        type: "update",
+        type: isPromoted ? "promo" : "post",
+        isPromoted: isPromoted,
       });
 
       // Clear state
@@ -143,7 +146,7 @@ export default function CreatePostScreen() {
             <CloseIcon size={20} color={Colors.slate[700]} />
           </TouchableOpacity>
 
-          <Text style={styles.screenTitle}>Create post</Text>
+          <Text style={styles.screenTitle}>{isPromoted ? "Promote listing" : "Create post"}</Text>
 
           <TouchableOpacity
             style={[styles.headerPostBtn, isPostDisabled && styles.headerPostBtnDisabled]}
@@ -188,8 +191,15 @@ export default function CreatePostScreen() {
                 <Text style={styles.businessName}>
                   {merchant?.name || "Your Business"}
                 </Text>
-                <View style={styles.publicBadge}>
-                  <Text style={styles.publicBadgeText}>Public</Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2 }}>
+                  <View style={styles.publicBadge}>
+                    <Text style={styles.publicBadgeText}>Public</Text>
+                  </View>
+                  {isPromoted && (
+                    <View style={styles.promotedBadge}>
+                      <Text style={styles.promotedBadgeText}>Promo</Text>
+                    </View>
+                  )}
                 </View>
               </View>
             </View>
@@ -369,6 +379,19 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "600",
     color: Colors.slate[600],
+  },
+  promotedBadge: {
+    alignSelf: "flex-start",
+    backgroundColor: Colors.amber[100],
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: Radius.full,
+    marginTop: 2,
+  },
+  promotedBadgeText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: Colors.amber[800],
   },
   captionInput: {
     fontSize: 16,

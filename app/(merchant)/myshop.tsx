@@ -23,6 +23,7 @@ import {
   TagIcon,
   CloseIcon,
   CheckIcon,
+  MegaphoneIcon,
 } from "../../src/components/icons/AppIcons";
 import { HolidayClosureCard } from "../../src/components/common/HolidayClosureCard";
 import { LocationPicker } from "../../src/components/common/LocationPicker";
@@ -491,7 +492,9 @@ export default function MerchantMyShop() {
                     ) : null}
                     <View style={styles.previewPostBody}>
                       <Text style={styles.previewPostCaption}>{post.caption}</Text>
-                      <Text style={styles.previewPostType}>{post.type}</Text>
+                      <Text style={styles.previewPostType}>
+                        {post.isPromoted || post.type === "promo" ? "Promo" : "Post"}
+                      </Text>
                     </View>
                   </View>
                 ))}
@@ -604,6 +607,39 @@ export default function MerchantMyShop() {
                 </View>
               </View>
 
+              {/* Promote Listing Card */}
+              <View style={styles.promoteCard}>
+                <View style={styles.promoteHeader}>
+                  <View style={styles.promoteTextGroup}>
+                    <Text style={styles.promoteTitle}>Promote Listing</Text>
+                    <Text style={styles.promoteSub}>
+                      Boost your visibility to local shoppers.
+                    </Text>
+                  </View>
+                </View>
+                <TouchableOpacity
+                  style={styles.promoteButton}
+                  onPress={() =>
+                    router.push({
+                      pathname: "/(merchant)/create-post",
+                      params: { isPromoted: "true" },
+                    })
+                  }
+                  activeOpacity={0.85}
+                >
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 6,
+                    }}
+                  >
+                    <MegaphoneIcon size={14} color={Colors.white} />
+                    <Text style={styles.promoteButtonText}>Promote Listing</Text>
+                  </View>
+                </TouchableOpacity>
+              </View>
+
               {/* Current / Most Recent Post */}
               {posts.length > 0 && (
                 <View style={styles.card}>
@@ -640,7 +676,9 @@ export default function MerchantMyShop() {
                   ) : null}
                   <View style={styles.currentPostBody}>
                     <Text style={styles.currentPostCaption}>{posts[0].caption}</Text>
-                    <Text style={styles.currentPostType}>{posts[0].type}</Text>
+                    <Text style={styles.currentPostType}>
+                      {posts[0].isPromoted || posts[0].type === "promo" ? "Promo" : "Post"}
+                    </Text>
                   </View>
                 </View>
               )}
