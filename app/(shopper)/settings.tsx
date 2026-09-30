@@ -9,7 +9,6 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import * as Notifications from "expo-notifications";
 import { useAuthRole } from "../../src/context/AuthRoleContext";
 import { Colors, Radius, Shadows } from "../../src/constants/theme";
 import { ChevronRight } from "../../src/components/icons/AppIcons";
@@ -19,15 +18,6 @@ import {
   updateNotificationPreferences,
 } from "../../src/services/firestoreService";
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: false,
-    shouldSetBadge: false,
-  }),
-});
-
 export default function SettingsScreen() {
   const router = useRouter();
   const { user, signOut } = useAuthRole();
@@ -35,7 +25,6 @@ export default function SettingsScreen() {
   const [proximityAlerts, setProximityAlerts] = useState(true);
   const [merchantAlerts, setMerchantAlerts] = useState(true);
   const [dealAlerts, setDealAlerts] = useState(false);
-  const [pushToken, setPushToken] = useState<string | null>(null);
 
   // Load saved preferences from Firestore
   useEffect(() => {
@@ -48,32 +37,6 @@ export default function SettingsScreen() {
       }
     });
   }, [user?.uid]);
-
-  // Request permission and register push token.
-  // Wrapped in try/catch so that notification toggles still save to Firestore
-  // even when getExpoPushTokenAsync throws (e.g. remote push unavailable in
-  // Expo Go on Android SDK 53+).
-  const registerPushToken = useCallback(async () => {
-    try {
-      const perm = await Notifications.requestPermissionsAsync();
-      const status = (perm as any).status ?? (perm.granted ? "granted" : "denied");
-      if (status !== "granted") {
-        console.log("[Settings] Notification permission not granted:", status);
-        return;
-      }
-      if (Platform.OS === "android") {
-        await Notifications.setNotificationChannelAsync("default", {
-          name: "default",
-          importance: Notifications.AndroidImportance.DEFAULT,
-        });
-      }
-      const token = await Notifications.getExpoPushTokenAsync();
-      setPushToken(token.data);
-      console.log("[Settings] Push token registered:", token.data);
-    } catch (err) {
-      console.warn("[Settings] Push token registration failed (toggles still saved):", err);
-    }
-  }, []);
 
   const handleToggle = useCallback(
     (key: "proximityAlerts" | "merchantAlerts" | "dealAlerts") => {
@@ -97,13 +60,8 @@ export default function SettingsScreen() {
         };
         updateNotificationPreferences(user.uid, prefs);
       }
-
-      // Register push token when any toggle is turned on
-      if (newValue) {
-        registerPushToken();
-      }
     },
-    [proximityAlerts, merchantAlerts, dealAlerts, user?.uid, registerPushToken]
+    [proximityAlerts, merchantAlerts, dealAlerts, user?.uid]
   );
 
   const handleSignOut = async () => {
