@@ -12,7 +12,10 @@ import { useAuthRole } from "../../src/context/AuthRoleContext";
 import { Colors, Radius, Shadows } from "../../src/constants/theme";
 import { ChevronRight } from "../../src/components/icons/AppIcons";
 import { ProfileCard } from "../../src/components/common/ProfileCard";
-import { fetchMerchantByOwner } from "../../src/services/firestoreService";
+import {
+  fetchMerchantByOwner,
+  updateMerchantDoc,
+} from "../../src/services/firestoreService";
 
 export default function MerchantAccountScreen() {
   const router = useRouter();
@@ -23,6 +26,7 @@ export default function MerchantAccountScreen() {
   const [dealAlerts, setDealAlerts] = useState(false);
   const [businessPhotoUrl, setBusinessPhotoUrl] = useState<string | undefined>(undefined);
   const [businessName, setBusinessName] = useState<string | undefined>(undefined);
+  const [businessId, setBusinessId] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     if (user?.uid) {
@@ -30,10 +34,21 @@ export default function MerchantAccountScreen() {
         if (m) {
           setBusinessPhotoUrl(m.coverPhotoUrl || m.img || undefined);
           setBusinessName(m.name || undefined);
+          setBusinessId(String(m.id));
         }
       });
     }
   }, [user?.uid]);
+
+  const handleBusinessPhotoUploaded = async (url: string) => {
+    if (!businessId) return;
+    const updated = await updateMerchantDoc(businessId, {
+      coverPhotoUrl: url,
+      img: url,
+    });
+    if (!updated) throw new Error("Could not update business photo.");
+    setBusinessPhotoUrl(url);
+  };
 
   const handleSignOut = async () => {
     await signOut();
@@ -77,10 +92,13 @@ export default function MerchantAccountScreen() {
         >
           {/* Profile Card */}
           <ProfileCard
-            roleBadgeText="Merchant Owner"
+            roleBadgeText="Business Owner"
             themeColor={Colors.teal[700]}
             businessPhotoUrl={businessPhotoUrl}
             businessName={businessName}
+            isBusinessProfile
+            businessId={businessId}
+            onBusinessPhotoUploaded={handleBusinessPhotoUploaded}
           />
 
           {/* Push Notifications Section */}

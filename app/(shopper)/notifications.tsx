@@ -16,7 +16,11 @@ import {
   fetchSavedMerchantsWithDetails,
 } from "../../src/services/firestoreService";
 import { useAuthRole } from "../../src/context/AuthRoleContext";
-import { StarIcon, BookmarkIcon } from "../../src/components/icons/AppIcons";
+import {
+  BellIcon,
+  StarIcon,
+  BookmarkIcon,
+} from "../../src/components/icons/AppIcons";
 import { MerchantSheet } from "../../src/components/common/MerchantSheet";
 import { MerchantPhoto } from "../../src/components/common/MerchantPhoto";
 
@@ -137,7 +141,7 @@ export default function NotificationsScreen() {
               </View>
             ) : updateItems.length === 0 ? (
               <View style={styles.emptyContainer}>
-                <Text style={styles.emptyEmoji}>🔔</Text>
+                    <BellIcon size={32} color={Colors.slate[400]} />
                 <Text style={styles.emptyTitle}>No updates yet</Text>
                 <Text style={styles.emptySub}>
                   You're all caught up! Updates about local deals and community alerts will appear here.
@@ -158,7 +162,10 @@ export default function NotificationsScreen() {
                       n.unread ? styles.iconCircleUnread : styles.iconCircleRead,
                     ]}
                   >
-                    <Text style={styles.notificationEmoji}>{n.icon}</Text>
+                    <BellIcon
+                      size={18}
+                      color={n.unread ? Colors.teal[700] : Colors.slate[400]}
+                    />
                   </View>
 
                   <View style={styles.cardContent}>
@@ -181,7 +188,7 @@ export default function NotificationsScreen() {
               </View>
             ) : savedMerchants.length === 0 ? (
               <View style={styles.emptyContainer}>
-                <Text style={styles.emptyEmoji}>⭐</Text>
+                <StarIcon size={32} color={Colors.amber[500]} />
                 <Text style={styles.emptyTitle}>No saved businesses yet</Text>
                 <Text style={styles.emptySub}>
                   Tap the bookmark star icon on any business info card in Discover or Home to save it here for fast access!
@@ -328,9 +335,6 @@ const styles = StyleSheet.create({
   iconCircleRead: {
     backgroundColor: Colors.slate[50],
   },
-  notificationEmoji: {
-    fontSize: 18,
-  },
   cardContent: {
     flex: 1,
   },
@@ -379,10 +383,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     alignItems: "center",
     gap: 8,
-  },
-  emptyEmoji: {
-    fontSize: 36,
-    marginBottom: 4,
   },
   emptyTitle: {
     fontSize: 16,

@@ -226,7 +226,7 @@ export default function MerchantDashboard() {
               </View>
               <Text style={styles.emptyStateTitle}>Finish setting up your business</Text>
               <Text style={styles.emptyStateSubtitle}>
-                Complete your merchant setup to see your dashboard, performance
+                Complete your business setup to see your dashboard, performance
                 metrics, and recent activity.
               </Text>
               <TouchableOpacity
@@ -394,11 +394,11 @@ export default function MerchantDashboard() {
                   activities.map((a, i) => (
                     <View key={i} style={styles.activityItemCard}>
                       <View style={{ width: 24, alignItems: "center" }}>
-                        {a.icon === "📍" ? (
+                        {a.icon === "location" ? (
                           <LocationIcon size={18} color={Colors.teal[700]} />
-                        ) : a.icon === "🔴" ? (
+                        ) : a.icon === "alert" ? (
                           <AlertTriangleIcon size={18} color={Colors.rose[500]} />
-                        ) : a.icon === "🔖" ? (
+                        ) : a.icon === "saved" ? (
                           <TagIcon size={18} color={Colors.teal[600]} />
                         ) : (
                           <CheckIcon size={18} color={Colors.emerald[600]} />
@@ -442,14 +442,6 @@ export default function MerchantDashboard() {
               <View style={styles.activitySection}>
                 <View style={styles.postsSectionHeader}>
                   <Text style={styles.sectionTitle}>Your Posts</Text>
-                  <TouchableOpacity
-                    style={styles.headerNewPostBtn}
-                    onPress={() => router.push("/(merchant)/create-post")}
-                    activeOpacity={0.7}
-                  >
-                    <PlusIcon size={14} color={Colors.teal[700]} />
-                    <Text style={styles.headerNewPostBtnText}>New Post</Text>
-                  </TouchableOpacity>
                 </View>
                 {posts.length === 0 ? (
                   <TouchableOpacity
@@ -1037,20 +1029,6 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 12,
-  },
-  headerNewPostBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: Radius.full,
-    backgroundColor: Colors.teal[50],
-  },
-  headerNewPostBtnText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: Colors.teal[700],
   },
 });
 

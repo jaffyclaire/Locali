@@ -73,7 +73,7 @@ export default function CreatePostScreen() {
 
   const handleCreatePost = async () => {
     if (!merchant) {
-      Alert.alert("Error", "Merchant profile not found.");
+      Alert.alert("Error", "Business profile not found.");
       return;
     }
     if (!postCaption.trim() && postImageUris.length === 0) {

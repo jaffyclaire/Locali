@@ -890,7 +890,7 @@ export const fetchMerchantRecentActivity = async (
         ? data.tappedAt.toMillis()
         : Date.now();
       activities.push({
-        icon: "📍",
+        icon: "location",
         text: "A shopper requested directions to your shop",
         time: formatRelativeTime(ms),
         timestamp: ms,
@@ -911,7 +911,7 @@ export const fetchMerchantRecentActivity = async (
         ? data.createdAt.toMillis()
         : Date.now();
       activities.push({
-        icon: data.status === "resolved" ? "✓" : "🔴",
+        icon: data.status === "resolved" ? "verified" : "alert",
         text:
           data.status === "resolved"
             ? `Flag report resolved (${data.issueType || "Hours"})`
@@ -927,7 +927,7 @@ export const fetchMerchantRecentActivity = async (
     if (activities.length === 0) {
       return [
         {
-          icon: "✓",
+          icon: "verified",
           text: "Listing active and verified in local search",
           time: "Today",
           timestamp: Date.now(),
@@ -965,7 +965,7 @@ export const fetchUserNotifications = async (
       return {
         id: d.id,
         tab: "Updates",
-        icon: data.icon || "🔔",
+        icon: data.icon || "bell",
         title: data.title || "Notification",
         body: data.body || "",
         time: data.time || "Recently",

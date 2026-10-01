@@ -224,4 +224,22 @@ export const ImageIcon: React.FC<IconProps> = ({ size = 20, color = Colors.slate
   </Svg>
 );
 
+export const PhoneIcon: React.FC<IconProps> = ({ size = 18, color = Colors.teal[700], ...props }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill={color} {...props}>
+    <Path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.01-.24c1.12.37 2.33.56 3.58.56.55 0 1 .45 1 1V20c0 .55-.45 1-1 1C10.61 21 3 13.39 3 4c0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.19 2.46.56 3.58a1 1 0 01-.25 1.01l-2.19 2.2z" />
+  </Svg>
+);
+
+export const CalendarIcon: React.FC<IconProps> = ({ size = 18, color = Colors.teal[700], ...props }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill={color} {...props}>
+    <Path d="M19 4h-1V2h-2v2H8V2H6v2H5C3.9 4 3 4.9 3 6v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V9h14v11zM7 11h4v4H7z" />
+  </Svg>
+);
+
+export const SparklesIcon: React.FC<IconProps> = ({ size = 24, color = Colors.teal[700], ...props }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill={color} {...props}>
+    <Path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3zm7 10 .9 2.1L22 16l-2.1.9L19 19l-.9-2.1L16 16l2.1-.9L19 13zM5 14l.65 1.35L7 16l-1.35.65L5 18l-.65-1.35L3 16l1.35-.65L5 14z" />
+  </Svg>
+);
+
 

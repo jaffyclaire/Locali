@@ -122,6 +122,12 @@ export default function MerchantTabsLayout() {
           ),
         }}
       />
+      <Tabs.Screen
+        name="create-post"
+        options={{
+          href: null,
+        }}
+      />
     </Tabs>
   );
 }

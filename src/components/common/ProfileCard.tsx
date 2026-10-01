@@ -22,6 +22,10 @@ interface ProfileCardProps {
   businessPhotoUrl?: string;
   /** Business name — used for the initial when no business photo is set */
   businessName?: string;
+  /** Render the business identity and upload photos to the business listing. */
+  isBusinessProfile?: boolean;
+  businessId?: string | number;
+  onBusinessPhotoUploaded?: (url: string) => void | Promise<void>;
 }
 
 export const ProfileCard: React.FC<ProfileCardProps> = ({
@@ -29,6 +33,9 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
   themeColor = Colors.teal[700],
   businessPhotoUrl,
   businessName,
+  isBusinessProfile = false,
+  businessId,
+  onBusinessPhotoUploaded,
 }) => {
   const { user, updateUser } = useAuthRole();
   const [modalVisible, setModalVisible] = useState(false);
@@ -42,10 +49,15 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
       if (!uri) return;
 
       setUploadingAvatar(true);
-      const storagePath = `users/${user.uid}/avatar-${Date.now()}.jpg`;
+      if (isBusinessProfile && !businessId) return;
+      const storagePath = isBusinessProfile
+        ? `merchants/${businessId}/cover-${Date.now()}.jpg`
+        : `users/${user.uid}/avatar-${Date.now()}.jpg`;
       const downloadUrl = await uploadImageAsync(uri, storagePath);
 
-      if (updateUser) {
+      if (isBusinessProfile) {
+        await onBusinessPhotoUploaded?.(downloadUrl);
+      } else if (updateUser) {
         await updateUser({ avatarUrl: downloadUrl });
       }
     } catch (err) {
@@ -55,6 +67,8 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
       setUploadingAvatar(false);
     }
   };
+
+  const normalizedBusinessPhotoUrl = businessPhotoUrl?.trim();
 
   const handleSaveName = async () => {
     if (!nameInput.trim()) return;
@@ -101,16 +115,16 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
       <TouchableOpacity
         style={styles.avatarWrapper}
         onPress={handlePickAvatar}
-        disabled={uploadingAvatar}
+        disabled={uploadingAvatar || (isBusinessProfile && !businessId)}
         activeOpacity={0.8}
       >
-        {businessPhotoUrl ? (
+        {isBusinessProfile ? normalizedBusinessPhotoUrl ? (
           <Image
-            source={{ uri: businessPhotoUrl }}
+            source={{ uri: normalizedBusinessPhotoUrl }}
             style={styles.avatarImage}
             resizeMode="cover"
           />
-        ) : businessName ? (
+        ) : (
           <View style={[styles.avatarCircle, { backgroundColor: themeColor }]}>
             <Text style={styles.avatarInitials}>{businessInitials}</Text>
           </View>
@@ -137,8 +151,15 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
 
       <View style={styles.profileInfo}>
         <Text style={styles.profileName} numberOfLines={1}>
-          {user.fullName || user.name || "User"}
+          {isBusinessProfile
+            ? businessName?.trim() || "Business"
+            : user.fullName || user.name || "User"}
         </Text>
+        {isBusinessProfile && (user.fullName || user.name) && (
+          <Text style={styles.ownerName} numberOfLines={1}>
+            Owned by {user.fullName || user.name}
+          </Text>
+        )}
         <Text style={styles.profileEmail} numberOfLines={1}>
           {user.email || "user@example.com"}
         </Text>
@@ -269,6 +290,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "700",
     color: Colors.slate[900],
+    marginBottom: 2,
+  },
+  ownerName: {
+    fontSize: 11,
+    color: Colors.slate[500],
     marginBottom: 2,
   },
   profileEmail: {

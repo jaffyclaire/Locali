@@ -11,6 +11,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuthRole } from "../../src/context/AuthRoleContext";
 import { Colors, Radius, Shadows } from "../../src/constants/theme";
 import { fetchInterests, InterestItem } from "../../src/services/firestoreService";
+import { SparklesIcon } from "../../src/components/icons/AppIcons";
 
 export default function OnboardingScreen() {
   const router = useRouter();
@@ -58,7 +59,7 @@ export default function OnboardingScreen() {
           {/* Header */}
           <View style={styles.header}>
             <View style={styles.iconBox}>
-              <Text style={styles.iconEmoji}>✨</Text>
+              <SparklesIcon size={28} color={Colors.teal[700]} />
             </View>
             <Text style={styles.title}>What are you into?</Text>
             <Text style={styles.subtitle}>
@@ -142,9 +143,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 18,
-  },
-  iconEmoji: {
-    fontSize: 22,
   },
   title: {
     fontSize: 26,

@@ -166,7 +166,7 @@ export const NOTIFICATIONS: NotificationItem[] = [
   {
     id: 1,
     tab: "Updates",
-    icon: "☕",
+    icon: "coffee",
     title: "Brew & Co. just opened",
     body: "Your favorite nearby coffee shop is open now.",
     time: "2 min ago",
@@ -175,7 +175,7 @@ export const NOTIFICATIONS: NotificationItem[] = [
   {
     id: 2,
     tab: "Updates",
-    icon: "🛒",
+    icon: "cart",
     title: "Green Basket — New Arrivals",
     body: "Fresh produce restock every Tuesday morning.",
     time: "1 hr ago",
@@ -184,7 +184,7 @@ export const NOTIFICATIONS: NotificationItem[] = [
   {
     id: 3,
     tab: "Saved Deals",
-    icon: "🌮",
+    icon: "food",
     title: "Taco Flash Flash Sale",
     body: "20% off all orders before noon today.",
     time: "3 hr ago",
@@ -193,7 +193,7 @@ export const NOTIFICATIONS: NotificationItem[] = [
   {
     id: 4,
     tab: "Updates",
-    icon: "📍",
+    icon: "location",
     title: "Thread & Needle is now open",
     body: "Updated hours: Mon–Sat 10 AM – 8 PM.",
     time: "Yesterday",
@@ -202,7 +202,7 @@ export const NOTIFICATIONS: NotificationItem[] = [
   {
     id: 5,
     tab: "Saved Deals",
-    icon: "☕",
+    icon: "coffee",
     title: "Roast Republic Grand Opening",
     body: "Free pastry with first purchase this week.",
     time: "2 days ago",

@@ -25,6 +25,8 @@ import {
   RightArrowIcon,
   BackArrowIcon,
   BookmarkIcon,
+  CalendarIcon,
+  LocationIcon,
 } from "../icons/AppIcons";
 import { openDirections } from "../../services/directionsService";
 import { useAuthRole } from "../../context/AuthRoleContext";
@@ -243,7 +245,7 @@ export const MerchantSheet: React.FC<MerchantSheetProps> = ({
                   </View>
                 ) : posts.length === 0 ? (
                   <View style={styles.emptyPostsBox}>
-                    <Text style={styles.emptyPostsEmoji}>📢</Text>
+                    <MegaphoneIcon size={30} color={Colors.teal[600]} />
                     <Text style={styles.emptyPostsTitle}>No updates yet</Text>
                     <Text style={styles.emptyPostsSub}>
                       This business hasn't shared any promotional posts or announcements yet. Check back soon!
@@ -401,7 +403,7 @@ export const MerchantSheet: React.FC<MerchantSheetProps> = ({
               {/* Holiday Notice Banner */}
               {showHolidayBanner && (
                 <View style={styles.holidayBanner}>
-                  <Text style={styles.bannerEmoji}>🎃</Text>
+                  <CalendarIcon size={18} color={Colors.amber[700]} />
                   <View style={styles.bannerContent}>
                     <Text style={styles.bannerTitle}>Upcoming Holiday Closure</Text>
                     <Text style={styles.bannerText}>
@@ -430,7 +432,7 @@ export const MerchantSheet: React.FC<MerchantSheetProps> = ({
             <View style={styles.detailsCard}>
               <Text style={styles.sectionTitle}>Store Details</Text>
               <View style={styles.addressRow}>
-                <Text style={styles.pinEmoji}>📍</Text>
+                <LocationIcon size={16} color={Colors.teal[700]} />
                 <Text style={styles.addressText}>{merchant.address || "Address not available"}</Text>
               </View>
 
@@ -772,9 +774,6 @@ const styles = StyleSheet.create({
     gap: 8,
     marginBottom: 16,
   },
-  bannerEmoji: {
-    fontSize: 16,
-  },
   bannerContent: {
     flex: 1,
   },
@@ -829,9 +828,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 6,
     marginBottom: 12,
-  },
-  pinEmoji: {
-    fontSize: 14,
   },
   addressText: {
     fontSize: 13,
@@ -1095,9 +1091,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.slate[200],
     gap: 8,
-  },
-  emptyPostsEmoji: {
-    fontSize: 32,
   },
   emptyPostsTitle: {
     fontSize: 15,

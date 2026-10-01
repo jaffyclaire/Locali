@@ -23,6 +23,10 @@ import {
   AlertTriangleIcon,
   EyeIcon,
   ChevronRight,
+  ClockIcon,
+  LocationIcon,
+  PhoneIcon,
+  ImageIcon,
 } from "../../src/components/icons/AppIcons";
 
 interface AdminFlagReport {
@@ -108,13 +112,21 @@ export default function AdminReports() {
     }
   };
 
-  const getIssueIcon = (issue: string) => {
+  const getIssueIcon = (issue: string): React.ReactNode => {
     const lower = issue.toLowerCase();
-    if (lower.includes("hour") || lower.includes("time")) return "🕐";
-    if (lower.includes("location") || lower.includes("address")) return "📍";
-    if (lower.includes("phone") || lower.includes("contact")) return "📞";
-    if (lower.includes("image") || lower.includes("photo")) return "📷";
-    return "⚠️";
+    if (lower.includes("hour") || lower.includes("time")) {
+      return <ClockIcon size={18} color={Colors.amber[700]} />;
+    }
+    if (lower.includes("location") || lower.includes("address")) {
+      return <LocationIcon size={18} color={Colors.teal[700]} />;
+    }
+    if (lower.includes("phone") || lower.includes("contact")) {
+      return <PhoneIcon size={18} color={Colors.teal[700]} />;
+    }
+    if (lower.includes("image") || lower.includes("photo")) {
+      return <ImageIcon size={18} color={Colors.slate[600]} />;
+    }
+    return <AlertTriangleIcon size={18} color={Colors.rose[500]} />;
   };
 
   const getResolutionLabel = (action: string) => {
@@ -215,9 +227,7 @@ export default function AdminReports() {
               >
                 <View style={styles.reportCardLeft}>
                   <View style={styles.issueIcon}>
-                    <Text style={styles.issueIconText}>
-                      {getIssueIcon(report.issue)}
-                    </Text>
+                    {getIssueIcon(report.issue)}
                   </View>
                   <View style={styles.reportInfo}>
                     <View style={styles.reportTitleRow}>
@@ -280,9 +290,9 @@ export default function AdminReports() {
                   <View style={styles.modalSection}>
                     <Text style={styles.modalSectionTitle}>Issue Type</Text>
                     <View style={styles.issueTypeCard}>
-                      <Text style={styles.issueTypeIcon}>
+                      <View style={styles.issueTypeIcon}>
                         {getIssueIcon(selectedReport.issue)}
-                      </Text>
+                      </View>
                       <Text style={styles.issueTypeText}>
                         {selectedReport.issue}
                       </Text>
@@ -526,9 +536,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  issueIconText: {
-    fontSize: 16,
-  },
   reportInfo: {
     flex: 1,
   },
@@ -626,7 +633,9 @@ const styles = StyleSheet.create({
     padding: 14,
   },
   issueTypeIcon: {
-    fontSize: 20,
+    width: 24,
+    alignItems: "center",
+    justifyContent: "center",
   },
   issueTypeText: {
     fontSize: 15,

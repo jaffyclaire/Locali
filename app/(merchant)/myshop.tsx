@@ -546,7 +546,7 @@ export default function MerchantMyShop() {
             <View style={styles.emptyState}>
               <Text style={styles.emptyStateTitle}>No business listing yet</Text>
               <Text style={styles.emptyStateSubtitle}>
-                Complete your merchant setup to create your listing and manage it here.
+                Complete your business setup to create your listing and manage it here.
               </Text>
               <TouchableOpacity
                 style={styles.emptyStateButton}
