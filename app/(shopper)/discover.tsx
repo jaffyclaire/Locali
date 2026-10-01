@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   ScrollView,
   FlatList,
-  Image,
   StyleSheet,
   Dimensions,
   Platform,
@@ -30,6 +29,7 @@ import {
 } from "../../src/components/icons/AppIcons";
 import { CustomMarker } from "../../src/components/map/CustomMarker";
 import { MerchantSheet } from "../../src/components/common/MerchantSheet";
+import { MerchantPhoto } from "../../src/components/common/MerchantPhoto";
 import { FilterSheet } from "../../src/components/common/FilterSheet";
 import { fetchMerchants, fetchCategories } from "../../src/services/firestoreService";
 import { openDirections } from "../../src/services/directionsService";
@@ -358,11 +358,7 @@ export default function DiscoverScreen() {
                 >
                   {/* Top row */}
                   <View style={styles.cardHeaderRow}>
-                    <Image
-                      source={{ uri: m.img }}
-                      style={styles.cardAvatar}
-                      resizeMode="cover"
-                    />
+                    <MerchantPhoto uri={m.img} style={styles.cardAvatar} />
                     <View style={styles.cardHeaderContent}>
                       <View style={styles.titleRow}>
                         <Text style={styles.cardTitle} numberOfLines={1}>
@@ -521,10 +517,9 @@ export default function DiscoverScreen() {
                       }}
                       activeOpacity={0.9}
                     >
-                      <Image
-                        source={{ uri: item.img }}
+                      <MerchantPhoto
+                        uri={item.img}
                         style={styles.carouselCardImage}
-                        resizeMode="cover"
                       />
                       <View style={styles.carouselCardBody}>
                         <Text style={styles.carouselCardTitle} numberOfLines={1}>

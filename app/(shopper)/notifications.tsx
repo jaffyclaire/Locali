@@ -5,7 +5,6 @@ import {
   TouchableOpacity,
   ScrollView,
   StyleSheet,
-  Image,
   ActivityIndicator,
   RefreshControl,
 } from "react-native";
@@ -19,6 +18,7 @@ import {
 import { useAuthRole } from "../../src/context/AuthRoleContext";
 import { StarIcon, BookmarkIcon } from "../../src/components/icons/AppIcons";
 import { MerchantSheet } from "../../src/components/common/MerchantSheet";
+import { MerchantPhoto } from "../../src/components/common/MerchantPhoto";
 
 export default function NotificationsScreen() {
   const [activeTab, setActiveTab] = useState<"Updates" | "Saved Deals">("Updates");
@@ -195,11 +195,7 @@ export default function NotificationsScreen() {
                   onPress={() => setSelectedMerchant(m)}
                   activeOpacity={0.85}
                 >
-                  <Image
-                    source={{ uri: m.img }}
-                    style={styles.savedAvatar}
-                    resizeMode="cover"
-                  />
+                  <MerchantPhoto uri={m.img} style={styles.savedAvatar} />
                   <View style={styles.savedBody}>
                     <View style={styles.savedTitleRow}>
                       <Text style={styles.savedName} numberOfLines={1}>

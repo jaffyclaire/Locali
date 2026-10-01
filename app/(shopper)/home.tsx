@@ -20,6 +20,7 @@ import {
   CheckIcon,
 } from "../../src/components/icons/AppIcons";
 import { HeroAdCarousel } from "../../src/components/common/HeroAdCarousel";
+import { MerchantPhoto } from "../../src/components/common/MerchantPhoto";
 import { SponsoredCard } from "../../src/components/common/SponsoredCard";
 import { MerchantSheet } from "../../src/components/common/MerchantSheet";
 import { LocationPicker } from "../../src/components/common/LocationPicker";
@@ -244,11 +245,7 @@ export default function HomeScreen() {
                       onPress={() => setSelectedMerchant(m)}
                       activeOpacity={0.88}
                     >
-                      <Image
-                        source={{ uri: m.img }}
-                        style={styles.merchantImage}
-                        resizeMode="cover"
-                      />
+                      <MerchantPhoto uri={m.img} style={styles.merchantImage} />
                       <View style={styles.cardBody}>
                         <View style={styles.cardTitleRow}>
                           <Text style={styles.merchantCardTitle} numberOfLines={1}>

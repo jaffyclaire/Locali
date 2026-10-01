@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import { Merchant } from "../../types";
 import MerchantMap from "../MerchantMap";
+import { MerchantPhoto } from "./MerchantPhoto";
 // DAILY_HOURS import removed — using merchant.weeklyHours from Firestore instead
 import { Colors, Radius, Shadows } from "../../constants/theme";
 import {
@@ -315,11 +316,7 @@ export const MerchantSheet: React.FC<MerchantSheetProps> = ({
               contentContainerStyle={styles.scrollContent}
             >
               {/* Cover image */}
-              <Image
-                source={{ uri: merchant.img }}
-                style={styles.coverImage}
-                resizeMode="cover"
-              />
+              <MerchantPhoto uri={merchant.img} style={styles.coverImage} />
 
               {/* Title & Status */}
               <View style={styles.titleRow}>
