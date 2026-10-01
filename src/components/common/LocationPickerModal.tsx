@@ -14,6 +14,7 @@ import { reverseGeocode } from "../../services/geocodingService";
 import type { MapCoordinate, MerchantMapMarker } from "../MerchantMap.types";
 import type { UserLocation } from "../../types";
 
+// Currently unused: no app route imports this modal; retained for a future standalone location flow.
 interface LocationPickerModalProps {
   visible: boolean;
   initialLocation?: UserLocation | null;

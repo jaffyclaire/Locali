@@ -552,13 +552,6 @@ const styles = StyleSheet.create({
   mapPinSection: {
     gap: 6,
   },
-  mapWrapper: {
-    flex: 1,
-    minHeight: 200,
-    borderRadius: Radius["2xl"],
-    overflow: "hidden",
-    position: "relative",
-  },
   map: {
     width: "100%",
     height: "100%",

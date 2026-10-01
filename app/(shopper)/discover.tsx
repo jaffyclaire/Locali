@@ -895,6 +895,7 @@ const styles = StyleSheet.create({
   },
   mapContainer: {
     flex: 1,
+    minHeight: 300,
     position: "relative",
   },
   fullMap: {
