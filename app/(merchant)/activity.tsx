@@ -8,7 +8,6 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useFocusEffect } from "expo-router";
 import { useAuthRole } from "../../src/context/AuthRoleContext";
 import { Colors, Radius, Shadows } from "../../src/constants/theme";
 import { FlagReportItem } from "../../src/types";
@@ -24,13 +23,13 @@ import {
 export default function MerchantActivityScreen() {
   const { user } = useAuthRole();
   const [reports, setReports] = useState<FlagReportItem[]>([]);
-  const [streakCount, setStreakCount] = useState<number>(0);
+  const [streakCount, setStreakCount] = useState<number>(1);
   const [loading, setLoading] = useState<boolean>(true);
   const [merchantId, setMerchantId] = useState<string>("");
 
   const loadActivityData = useCallback(async () => {
     try {
-      if (!merchantId) setLoading(true);
+      setLoading(true);
       let mId = "";
       if (user?.uid) {
         const m = await fetchMerchantByOwner(user.uid);
@@ -47,7 +46,7 @@ export default function MerchantActivityScreen() {
           getLatestStreak(mId),
           fetchMerchantFlagReports(mId),
         ]);
-        setStreakCount(streak);
+        setStreakCount(streak || 1);
         setReports(flagList);
       }
     } catch (err) {
@@ -55,17 +54,11 @@ export default function MerchantActivityScreen() {
     } finally {
       setLoading(false);
     }
-  }, [user?.uid, merchantId]);
+  }, [user?.uid]);
 
   useEffect(() => {
     loadActivityData();
   }, [loadActivityData]);
-
-  useFocusEffect(
-    useCallback(() => {
-      loadActivityData();
-    }, [loadActivityData])
-  );
 
   const handleResolve = async (
     id: string | number,
@@ -109,14 +102,10 @@ export default function MerchantActivityScreen() {
             </View>
             <View style={styles.alertTextGroup}>
               <Text style={styles.alertTitle}>
-                {streakCount > 0
-                  ? `${streakCount}-day check-in streak!`
-                  : "Start your check-in streak!"}
+                {streakCount}-day check-in streak!
               </Text>
               <Text style={styles.alertSub}>
-                {streakCount > 0
-                  ? "Keep verifying daily to boost your ranking in the For-You feed."
-                  : "Verify your hours daily on the dashboard to build your streak and boost visibility."}
+                Keep verifying daily to boost your ranking in the For-You feed.
               </Text>
             </View>
           </View>

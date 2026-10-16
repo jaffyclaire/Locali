@@ -140,6 +140,7 @@ const MerchantMap = forwardRef<MerchantMapHandle, MerchantMapProps>(
       initialRegion,
       markers = [],
       onPress,
+      interactive = true,
       scrollEnabled = true,
       zoomEnabled = true,
       pitchEnabled = true,
@@ -170,11 +171,12 @@ const MerchantMap = forwardRef<MerchantMapHandle, MerchantMapProps>(
 
     // "Pitch" and "rotate" have no Leaflet equivalent; a non-interactive map is
     // expressed by disabling every Leaflet interaction control instead.
-    const interactionLocked =
+    const interactionLocked = !interactive || (
       scrollEnabled === false &&
       zoomEnabled === false &&
       pitchEnabled === false &&
-      rotateEnabled === false;
+      rotateEnabled === false
+    );
 
     return (
       <View style={style}>
@@ -182,20 +184,20 @@ const MerchantMap = forwardRef<MerchantMapHandle, MerchantMapProps>(
           center={center}
           zoom={initialZoom}
           style={{ width: "100%", height: "100%" }}
-          scrollWheelZoom={zoomEnabled}
-          zoomControl={zoomEnabled && !interactionLocked}
-          doubleClickZoom={zoomEnabled}
-          dragging={scrollEnabled}
-          touchZoom={zoomEnabled}
-          keyboard={scrollEnabled}
-          boxZoom={scrollEnabled}
+          scrollWheelZoom={interactive && zoomEnabled}
+          zoomControl={interactive && zoomEnabled && !interactionLocked}
+          doubleClickZoom={interactive && zoomEnabled}
+          dragging={interactive && scrollEnabled}
+          touchZoom={interactive && zoomEnabled}
+          keyboard={interactive && scrollEnabled}
+          boxZoom={interactive && scrollEnabled}
           // Always on, including the locked mini-maps: the OpenStreetMap tile
           // usage policy requires visible attribution wherever tiles are shown.
           attributionControl
         >
           <TileLayer url={OSM_URL} attribution={OSM_ATTRIBUTION} />
           <MapController ref={ref} />
-          {onPress ? <MapClickBridge onPress={onPress} /> : null}
+          {interactive && onPress ? <MapClickBridge onPress={onPress} /> : null}
 
           {markers.map((marker, index) => {
             const {
@@ -216,11 +218,11 @@ const MerchantMap = forwardRef<MerchantMapHandle, MerchantMapProps>(
                 key={id ?? `${coordinate.latitude},${coordinate.longitude},${index}`}
                 position={[coordinate.latitude, coordinate.longitude]}
                 icon={icons[index]}
-                draggable={draggable}
+                draggable={interactive && draggable}
                 title={title}
                 eventHandlers={{
-                  ...(onMarkerPress ? { click: onMarkerPress } : {}),
-                  ...(onDragEnd
+                  ...(interactive && onMarkerPress ? { click: onMarkerPress } : {}),
+                  ...(interactive && onDragEnd
                     ? {
                         dragend: (e: L.DragEndEvent) => {
                           const { lat, lng } = (e.target as L.Marker).getLatLng();

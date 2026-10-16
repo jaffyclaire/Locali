@@ -51,6 +51,8 @@ export interface MerchantMapProps {
   markers?: MerchantMapMarker[];
   /** Fired when the map surface itself is tapped, with the tapped coordinate. */
   onPress?: (coordinate: MapCoordinate) => void;
+  /** Enables map gestures and marker interactions. Defaults to true. */
+  interactive?: boolean;
   scrollEnabled?: boolean;
   zoomEnabled?: boolean;
   pitchEnabled?: boolean;

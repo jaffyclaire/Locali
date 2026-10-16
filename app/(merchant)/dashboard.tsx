@@ -58,7 +58,7 @@ export default function MerchantDashboard() {
   const loadDashboardData = useCallback(async (isPull = false) => {
     try {
       if (isPull) setRefreshing(true);
-      else if (!merchant) setLoading(true);
+      else setLoading(true);
 
       let currentMerchant: Merchant | null = null;
       if (user?.uid) {
@@ -168,7 +168,7 @@ export default function MerchantDashboard() {
               {merchant ? merchant.name : "Dashboard"}
             </Text>
             <Text style={styles.headerSubtitle}>
-              {merchant ? (merchant.category || "General") : "No business"}
+              {merchant ? `${merchant.name} · ${merchant.category}` : "No business"}
             </Text>
           </View>
           <View style={styles.headerRight}>
@@ -180,26 +180,11 @@ export default function MerchantDashboard() {
                 </View>
               </View>
             )}
-            {merchant?.coverPhotoUrl || merchant?.img || (merchant?.photos && merchant.photos[0]) || user?.avatarUrl ? (
-              <Image
-                source={{
-                  uri:
-                    merchant?.coverPhotoUrl ||
-                    merchant?.img ||
-                    merchant?.photos?.[0] ||
-                    user?.avatarUrl ||
-                    "",
-                }}
-                style={styles.businessAvatar}
-                resizeMode="cover"
-              />
-            ) : (
-              <View style={styles.businessAvatar}>
-                <Text style={styles.businessAvatarText}>
-                  {getInitials(merchant?.name)}
-                </Text>
-              </View>
-            )}
+            <View style={styles.businessAvatar}>
+              <Text style={styles.businessAvatarText}>
+                {getInitials(merchant?.name)}
+              </Text>
+            </View>
           </View>
         </View>
 
@@ -485,25 +470,7 @@ export default function MerchantDashboard() {
                       <View style={styles.postBody}>
                         <Text style={styles.postCaption}>{post.caption}</Text>
                         <View style={styles.postMetaRow}>
-                          <View
-                            style={[
-                              styles.postTypeBadge,
-                              (post.isPromoted || post.type === "promo")
-                                ? styles.postTypeBadgePromo
-                                : styles.postTypeBadgeStandard,
-                            ]}
-                          >
-                            <Text
-                              style={[
-                                styles.postTypeBadgeText,
-                                (post.isPromoted || post.type === "promo")
-                                  ? styles.postTypeBadgePromoText
-                                  : styles.postTypeBadgeStandardText,
-                              ]}
-                            >
-                              {(post.isPromoted || post.type === "promo") ? "Promo" : "Post"}
-                            </Text>
-                          </View>
+                          <Text style={styles.postType}>{post.type}</Text>
                           <TouchableOpacity
                             onPress={async () => {
                               if (merchant) {
@@ -588,7 +555,6 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(15, 118, 110, 0.15)",
     alignItems: "center",
     justifyContent: "center",
-    overflow: "hidden",
   },
   businessAvatarText: {
     fontSize: 13,
@@ -930,27 +896,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 8,
   },
-  postTypeBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: Radius.full,
-    alignSelf: "flex-start",
-  },
-  postTypeBadgePromo: {
-    backgroundColor: Colors.amber[100],
-  },
-  postTypeBadgeStandard: {
-    backgroundColor: Colors.teal[50],
-  },
-  postTypeBadgeText: {
+  postType: {
     fontSize: 11,
-    fontWeight: "700",
-  },
-  postTypeBadgePromoText: {
-    color: Colors.amber[800],
-  },
-  postTypeBadgeStandardText: {
+    fontWeight: "600",
     color: Colors.teal[700],
+    textTransform: "capitalize",
   },
   postDelete: {
     fontSize: 11,

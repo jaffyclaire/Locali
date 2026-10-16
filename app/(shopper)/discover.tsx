@@ -39,8 +39,8 @@ const { width } = Dimensions.get("window");
 const DEFAULT_CENTER = {
   latitude: 37.7752,
   longitude: -122.4196,
-  latitudeDelta: 0.015,
-  longitudeDelta: 0.015,
+  latitudeDelta: 0.01,
+  longitudeDelta: 0.01,
 };
 
 /**
@@ -414,28 +414,9 @@ export default function DiscoverScreen() {
 
                   {/* Inline Static Map Snapshot */}
                   <View style={styles.inlineMapContainer}>
-                    <MerchantMap
-                      style={styles.inlineMap}
-                      initialRegion={{
-                        latitude: m.lat,
-                        longitude: m.lng,
-                        latitudeDelta: 0.005,
-                        longitudeDelta: 0.005,
-                      }}
-                      scrollEnabled={false}
-                      zoomEnabled={false}
-                      pitchEnabled={false}
-                      rotateEnabled={false}
-                      markers={[
-                        {
-                          id: `inline-${m.id}`,
-                          coordinate: { latitude: m.lat, longitude: m.lng },
-                          pinColor: PIN_COLOR[m.type],
-                          pinSize: 32,
-                          children: <CustomMarker type={m.type} active />,
-                        },
-                      ]}
-                    />
+                    <View style={styles.inlineMapPlaceholder}>
+                      <MapViewIcon size={26} color={Colors.slate[400]} />
+                    </View>
                     <TouchableOpacity
                       style={[
                         styles.directionsOverlayButton,
@@ -466,6 +447,9 @@ export default function DiscoverScreen() {
             <MerchantMap
               ref={mapRef}
               style={styles.fullMap}
+              interactive
+              scrollEnabled
+              zoomEnabled
               initialRegion={DEFAULT_CENTER}
               markers={filtered.map((m) => ({
                 id: m.id,
@@ -867,8 +851,11 @@ const styles = StyleSheet.create({
     borderColor: Colors.slate[100],
     position: "relative",
   },
-  inlineMap: {
-    ...StyleSheet.absoluteFill,
+  inlineMapPlaceholder: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Colors.slate[100],
   },
   directionsOverlayButton: {
     position: "absolute",

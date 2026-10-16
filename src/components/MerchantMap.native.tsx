@@ -1,5 +1,5 @@
 import React, { forwardRef, useImperativeHandle, useRef } from "react";
-import { View, Text, StyleSheet, Platform } from "react-native";
+import { View, Text, StyleSheet } from "react-native";
 import MapView, { Marker, UrlTile, PROVIDER_DEFAULT } from "react-native-maps";
 import type {
   MapRegion,
@@ -9,21 +9,40 @@ import type {
 } from "./MerchantMap.types";
 
 const DEFAULT_DELTA = 0.01;
+const TILE_URL = `https://api.maptiler.com/maps/streets-v2/256/{z}/{x}/{y}.png?key=${process.env.EXPO_PUBLIC_MAPTILER_KEY ?? ""}`;
+const HAS_MAPTILER_KEY = Boolean(process.env.EXPO_PUBLIC_MAPTILER_KEY);
+let hasMapTilerProbeRun = false;
 
-/**
- * OpenStreetMap tile server URL template.
- * Note: Free OSM tile servers are suitable for development and low-traffic apps.
- * For production at scale, a dedicated or paid tile provider (e.g., Mapbox,
- * Stadia Maps, or a self-hosted tile server) should be used in accordance with
- * the OpenStreetMap Tile Usage Policy.
- */
-const OSM_URL = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
+const probeMapTilerFromDevice = async (region: MapRegion) => {
+  if (!HAS_MAPTILER_KEY || hasMapTilerProbeRun) return;
+  hasMapTilerProbeRun = true;
 
-// On Android, react-native-maps UrlTile does not replace the {s} subdomain wildcard,
-// causing DNS resolution errors for "{s}.tile.openstreetmap.org".
-// Normalizing {s} to 'a' on Android resolves the tile server hostname properly.
-const TILE_URL_TEMPLATE =
-  Platform.OS === "android" ? OSM_URL.replace("{s}", "a") : OSM_URL;
+  const zoom = 14;
+  const tilesPerAxis = 2 ** zoom;
+  const latitude = Math.max(-85.0511, Math.min(85.0511, region.latitude));
+  const latitudeRadians = (latitude * Math.PI) / 180;
+  const x = Math.floor(((region.longitude + 180) / 360) * tilesPerAxis);
+  const y = Math.floor(
+    ((1 - Math.log(Math.tan(latitudeRadians) + 1 / Math.cos(latitudeRadians)) / Math.PI) /
+      2) *
+      tilesPerAxis
+  );
+  const probeUrl = TILE_URL.replace("{z}", String(zoom))
+    .replace("{x}", String(x))
+    .replace("{y}", String(y));
+
+  try {
+    const response = await fetch(probeUrl);
+    console.log(
+      `[MerchantMap.native] Device tile probe: HTTP ${response.status}; content-type=${response.headers.get("content-type") ?? "unknown"}`
+    );
+  } catch (error) {
+    console.warn(
+      "[MerchantMap.native] Device tile probe failed:",
+      error instanceof Error ? error.message : "unknown network error"
+    );
+  }
+};
 
 /**
  * Native map surface backed by `react-native-maps`.
@@ -40,6 +59,7 @@ const MerchantMap = forwardRef<MerchantMapHandle, MerchantMapProps>(
       initialRegion,
       markers = [],
       onPress,
+      interactive = true,
       scrollEnabled = true,
       zoomEnabled = true,
       pitchEnabled = true,
@@ -90,7 +110,7 @@ const MerchantMap = forwardRef<MerchantMapHandle, MerchantMapProps>(
         <MapView
           ref={mapRef}
           provider={PROVIDER_DEFAULT}
-          mapType={Platform.OS === "android" ? "none" : undefined}
+          mapType="none"
           style={StyleSheet.absoluteFill}
           initialRegion={{
             latitude: initialRegion.latitude,
@@ -100,23 +120,32 @@ const MerchantMap = forwardRef<MerchantMapHandle, MerchantMapProps>(
           }}
           onMapReady={() => {
             console.log("[MerchantMap.native] onMapReady fired");
+            console.log(
+              `[MerchantMap.native] MapTiler UrlTile configured; key present: ${HAS_MAPTILER_KEY}`
+            );
+            void probeMapTilerFromDevice(initialRegion);
+            if (!HAS_MAPTILER_KEY) {
+              console.warn(
+                "[MerchantMap.native] EXPO_PUBLIC_MAPTILER_KEY is missing; MapTiler tiles will not load."
+              );
+            }
             onMapReady?.();
           }}
           onPress={
-            onPress
+            interactive && onPress
               ? (e) => onPress(e.nativeEvent.coordinate)
               : undefined
           }
-          scrollEnabled={scrollEnabled}
-          zoomEnabled={zoomEnabled}
-          pitchEnabled={pitchEnabled}
-          rotateEnabled={rotateEnabled}
+          scrollEnabled={interactive && scrollEnabled}
+          zoomEnabled={interactive && zoomEnabled}
+          pitchEnabled={interactive && pitchEnabled}
+          rotateEnabled={interactive && rotateEnabled}
         >
           <UrlTile
-            urlTemplate={TILE_URL_TEMPLATE}
+            urlTemplate={TILE_URL}
             maximumZ={19}
-            flipY={false}
-            zIndex={1}
+            tileSize={256}
+            zIndex={-1}
           />
           {markers.map((marker: MerchantMapMarker, index: number) => {
             const {
@@ -141,12 +170,12 @@ const MerchantMap = forwardRef<MerchantMapHandle, MerchantMapProps>(
                 coordinate={coordinate}
                 title={title}
                 description={description}
-                draggable={draggable}
-                onPress={onMarkerPress}
+                draggable={interactive && draggable}
+                onPress={interactive ? onMarkerPress : undefined}
                 // react-native-maps hands back a gesture event; unwrap it so the
                 // shared prop contract exposes a plain coordinate on both platforms.
                 onDragEnd={
-                  onDragEnd
+                  interactive && onDragEnd
                     ? (e) => onDragEnd(e.nativeEvent.coordinate)
                     : undefined
                 }
@@ -157,7 +186,9 @@ const MerchantMap = forwardRef<MerchantMapHandle, MerchantMapProps>(
           })}
         </MapView>
         <View style={styles.attributionBadge} pointerEvents="none">
-          <Text style={styles.attributionText}>© OpenStreetMap contributors</Text>
+          <Text style={styles.attributionText}>
+            © MapTiler © OpenStreetMap contributors
+          </Text>
         </View>
       </View>
     );
