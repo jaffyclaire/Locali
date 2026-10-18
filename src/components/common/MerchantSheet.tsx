@@ -12,18 +12,19 @@ import {
   TextInput,
   Alert,
 } from "react-native";
+import { useRouter } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Merchant } from "../../types";
 import MerchantMap from "../MerchantMap";
 import { MerchantPhoto } from "./MerchantPhoto";
+import { PostCard } from "../PostCard";
 // DAILY_HOURS import removed — using merchant.weeklyHours from Firestore instead
 import { Colors, Radius, Shadows } from "../../constants/theme";
 import {
   StarIcon,
   CheckIcon,
   CloseIcon,
-  MegaphoneIcon,
   RightArrowIcon,
-  BackArrowIcon,
   BookmarkIcon,
   CalendarIcon,
   LocationIcon,
@@ -31,13 +32,19 @@ import {
 import { openDirections } from "../../services/directionsService";
 import { useAuthRole } from "../../context/AuthRoleContext";
 import {
-  fetchMerchantPosts,
   MerchantPost,
   submitMerchantReview,
   fetchUserMerchantReview,
   getSavedMerchantIds,
   toggleSaveMerchant,
 } from "../../services/firestoreService";
+import {
+  fetchMerchantReviews,
+  MerchantReviewWithProfile,
+  createMerchantCustomerActivity,
+  fetchMerchantPostsForCustomer,
+  saveMerchantReviewProfile,
+} from "../../services/merchantCommunityService";
 
 interface MerchantSheetProps {
   merchant: Merchant | null;
@@ -48,38 +55,126 @@ interface MerchantSheetProps {
 
 const { height } = Dimensions.get("window");
 
+const reviewDateLabel = (value: unknown): string => {
+  let date: Date | null = null;
+  if (value instanceof Date) {
+    date = value;
+  } else if (value && typeof value === "object" && "toDate" in value) {
+    const toDate = value.toDate;
+    if (typeof toDate === "function") {
+      const result: unknown = toDate.call(value);
+      if (result instanceof Date) date = result;
+    }
+  } else if (typeof value === "string" || typeof value === "number") {
+    const result = new Date(value);
+    if (!Number.isNaN(result.getTime())) date = result;
+  }
+  return date
+    ? date.toLocaleDateString(undefined, {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })
+    : "Recently";
+};
+
 export const MerchantSheet: React.FC<MerchantSheetProps> = ({
   merchant,
   visible,
   onClose,
   showHolidayBanner = false,
 }) => {
+  const router = useRouter();
   const { user } = useAuthRole();
+  const insets = useSafeAreaInsets();
   const [reported, setReported] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [reportOption, setReportOption] = useState("");
   const [posts, setPosts] = useState<MerchantPost[]>([]);
-  const [postsLoading, setPostsLoading] = useState(false);
-  const [showPostsView, setShowPostsView] = useState(false);
+  const [postsLoadedForId, setPostsLoadedForId] = useState("");
+  const [postsError, setPostsError] = useState(false);
   const [userRating, setUserRating] = useState(0);
   const [reviewComment, setReviewComment] = useState("");
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
   const [reviewSubmitted, setReviewSubmitted] = useState(false);
   const [hasExistingReview, setHasExistingReview] = useState(false);
+  const [reviews, setReviews] = useState<MerchantReviewWithProfile[]>([]);
+  const [reviewsLoadedForId, setReviewsLoadedForId] = useState("");
+  const [reviewsError, setReviewsError] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
   const [savingBookmark, setSavingBookmark] = useState(false);
+  const postsLoading =
+    visible && !!merchant?.id && postsLoadedForId !== String(merchant.id);
+  const reviewsLoading =
+    visible && !!merchant?.id && reviewsLoadedForId !== String(merchant.id);
+  const ratedReviews = reviews.filter(
+    (review) => review.rating >= 1 && review.rating <= 5
+  );
+  const reviewAverage =
+    ratedReviews.length > 0
+      ? ratedReviews.reduce((sum, review) => sum + review.rating, 0) /
+        ratedReviews.length
+      : merchant?.rating || 0;
 
   useEffect(() => {
-    if (merchant?.id && visible) {
-      setPostsLoading(true);
-      fetchMerchantPosts(String(merchant.id))
-        .then((fetched) => setPosts(fetched))
-        .catch((err) => console.warn("[MerchantSheet] fetchMerchantPosts error:", err))
-        .finally(() => setPostsLoading(false));
-    } else {
-      setShowPostsView(false);
-    }
+    if (!merchant?.id || !visible) return;
+    const merchantId = String(merchant.id);
+    let cancelled = false;
+    fetchMerchantPostsForCustomer(merchantId)
+      .then((latestPosts) => {
+        if (cancelled) return;
+        setPosts(latestPosts);
+        setPostsLoadedForId(merchantId);
+        setPostsError(false);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setPostsLoadedForId(merchantId);
+        setPostsError(true);
+        console.warn("[MerchantSheet] Failed to load posts:", error);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [merchant?.id, visible]);
+
+  useEffect(() => {
+    if (!merchant?.id || !visible) return;
+    const merchantId = String(merchant.id);
+    let cancelled = false;
+    fetchMerchantReviews(merchantId)
+      .then((latestReviews) => {
+        if (cancelled) return;
+        setReviews(latestReviews);
+        setReviewsLoadedForId(merchantId);
+        setReviewsError(false);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setReviewsLoadedForId(merchantId);
+        setReviewsError(true);
+        console.warn("[MerchantSheet] Failed to load reviews:", error);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [merchant?.id, visible]);
+
+  const refreshReviews = async () => {
+    if (!merchant?.id) return;
+    const merchantId = String(merchant.id);
+    setReviewsLoadedForId("");
+    setReviewsError(false);
+    try {
+      const latestReviews = await fetchMerchantReviews(merchantId);
+      setReviews(latestReviews);
+      setReviewsLoadedForId(merchantId);
+    } catch (error) {
+      setReviewsLoadedForId(merchantId);
+      setReviewsError(true);
+      console.warn("[MerchantSheet] Failed to refresh reviews:", error);
+    }
+  };
 
   useEffect(() => {
     if (merchant?.id && user?.uid && visible) {
@@ -112,6 +207,19 @@ export const MerchantSheet: React.FC<MerchantSheetProps> = ({
     try {
       const nextSaved = await toggleSaveMerchant(user.uid, merchant.id, isSaved);
       setIsSaved(nextSaved);
+      if (nextSaved) {
+        try {
+          await createMerchantCustomerActivity(String(merchant.id), {
+            type: "saved",
+            shopperName: user.fullName || user.name || "A shopper",
+          });
+        } catch (activityError) {
+          console.warn(
+            "[MerchantSheet] Could not record save activity:",
+            activityError
+          );
+        }
+      }
     } catch (err) {
       console.error("[MerchantSheet] handleToggleSave error:", err);
     } finally {
@@ -148,6 +256,33 @@ export const MerchantSheet: React.FC<MerchantSheetProps> = ({
         setHasExistingReview(true);
         setReviewSubmitted(true);
         setTimeout(() => setReviewSubmitted(false), 4000);
+        try {
+          await saveMerchantReviewProfile(
+            String(merchant.id),
+            user.uid,
+            user.fullName || user.name || "Locali shopper",
+            user.avatarUrl
+          );
+        } catch (profileError) {
+          console.warn(
+            "[MerchantSheet] Could not save reviewer profile details:",
+            profileError
+          );
+        }
+        try {
+          await createMerchantCustomerActivity(String(merchant.id), {
+            type: "review",
+            shopperName: user.fullName || user.name || "A shopper",
+            rating: finalRating,
+            comment: reviewComment.trim(),
+          });
+        } catch (activityError) {
+          console.warn(
+            "[MerchantSheet] Could not record review activity:",
+            activityError
+          );
+        }
+        await refreshReviews();
       } else {
         Alert.alert("Error", "Could not submit review. Please try again.");
       }
@@ -163,9 +298,14 @@ export const MerchantSheet: React.FC<MerchantSheetProps> = ({
     setShowReport(false);
     setReported(false);
     setReportOption("");
-    setShowPostsView(false);
     setReviewSubmitted(false);
     onClose();
+  };
+
+  const openBusinessPage = () => {
+    if (!merchant) return;
+    onClose();
+    router.push(`/(shopper)/business/${merchant.id}`);
   };
 
   const handleSubmitReport = () => {
@@ -217,95 +357,12 @@ export const MerchantSheet: React.FC<MerchantSheetProps> = ({
             <CloseIcon size={20} color={Colors.slate[500]} />
           </TouchableOpacity>
 
-          {showPostsView ? (
-            /* ── POST FEED VIEW ── */
-            <View style={styles.postsViewContainer}>
-              <View style={styles.postsViewHeader}>
-                <TouchableOpacity
-                  style={styles.backButton}
-                  onPress={() => setShowPostsView(false)}
-                  activeOpacity={0.7}
-                >
-                  <BackArrowIcon size={20} color={Colors.teal[700]} />
-                  <Text style={styles.backButtonText}>Store Info</Text>
-                </TouchableOpacity>
-                <Text style={styles.postsViewTitle} numberOfLines={1}>
-                  {merchant.name} Posts
-                </Text>
-              </View>
-
-              <ScrollView
-                showsVerticalScrollIndicator={false}
-                contentContainerStyle={styles.postsScrollContent}
-              >
-                {postsLoading ? (
-                  <View style={styles.postsLoadingContainer}>
-                    <ActivityIndicator size="small" color={Colors.teal[700]} />
-                    <Text style={styles.postsLoadingText}>Loading posts…</Text>
-                  </View>
-                ) : posts.length === 0 ? (
-                  <View style={styles.emptyPostsBox}>
-                    <MegaphoneIcon size={30} color={Colors.teal[600]} />
-                    <Text style={styles.emptyPostsTitle}>No updates yet</Text>
-                    <Text style={styles.emptyPostsSub}>
-                      This business hasn't shared any promotional posts or announcements yet. Check back soon!
-                    </Text>
-                  </View>
-                ) : (
-                  posts.map((post) => (
-                    <View key={post.id} style={styles.sheetPostCard}>
-                      {/* Post Images: multi-image or single image */}
-                      {post.images && post.images.length > 1 ? (
-                        <ScrollView
-                          horizontal
-                          showsHorizontalScrollIndicator={false}
-                          contentContainerStyle={styles.multiImageScroll}
-                        >
-                          {post.images.map((imgUri, idx) => (
-                            <Image
-                              key={idx}
-                              source={{ uri: imgUri }}
-                              style={styles.postCarouselImage}
-                              resizeMode="cover"
-                            />
-                          ))}
-                        </ScrollView>
-                      ) : post.image ? (
-                        <Image
-                          source={{ uri: post.image }}
-                          style={styles.postSingleImage}
-                          resizeMode="cover"
-                        />
-                      ) : null}
-
-                      <View style={styles.sheetPostBody}>
-                        <View style={styles.sheetPostMetaRow}>
-                          <View style={styles.postTypeBadge}>
-                            <Text style={styles.postTypeBadgeText}>
-                              {post.type || "Promo"}
-                            </Text>
-                          </View>
-                          {post.createdAt?.toDate && (
-                            <Text style={styles.sheetPostDate}>
-                              {post.createdAt.toDate().toLocaleDateString(undefined, {
-                                month: "short",
-                                day: "numeric",
-                              })}
-                            </Text>
-                          )}
-                        </View>
-                        <Text style={styles.sheetPostCaption}>{post.caption}</Text>
-                      </View>
-                    </View>
-                  ))
-                )}
-                <View style={{ height: 32 }} />
-              </ScrollView>
-            </View>
-          ) : (
-            <ScrollView
+          <ScrollView
               showsVerticalScrollIndicator={false}
-              contentContainerStyle={styles.scrollContent}
+              contentContainerStyle={[
+                styles.scrollContent,
+                { paddingBottom: 24 + insets.bottom },
+              ]}
             >
               {/* Cover image */}
               <MerchantPhoto uri={merchant.img} style={styles.coverImage} />
@@ -353,40 +410,20 @@ export const MerchantSheet: React.FC<MerchantSheetProps> = ({
                 <View style={styles.ratingBadge}>
                   <StarIcon size={12} color={Colors.amber[500]} />
                   <Text style={styles.ratingText}>
-                    {merchant.rating > 0
-                      ? `${merchant.rating} (${merchant.reviews})`
+                      {reviewAverage > 0
+                        ? `${reviewAverage.toFixed(1)} (${reviews.length || merchant.reviews})`
                       : "No rating"}
                   </Text>
                 </View>
                 <Text style={styles.distanceText}>{merchant.distance}</Text>
               </View>
 
-              {/* Business Post Feed Link Banner */}
               <TouchableOpacity
-                style={styles.postsBanner}
-                onPress={() => setShowPostsView(true)}
+                style={styles.checkBusinessButton}
+                onPress={openBusinessPage}
                 activeOpacity={0.8}
               >
-                <View style={styles.postsBannerLeft}>
-                  <View style={styles.postsBannerIconWrap}>
-                    <MegaphoneIcon size={18} color={Colors.teal[700]} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                      <Text style={styles.postsBannerTitle}>Store Updates & Posts</Text>
-                      {posts.length > 0 && (
-                        <View style={styles.postsCountBadge}>
-                          <Text style={styles.postsCountText}>{posts.length}</Text>
-                        </View>
-                      )}
-                    </View>
-                    <Text style={styles.postsBannerSub} numberOfLines={1}>
-                      {posts.length > 0
-                        ? posts[0].caption || `${posts.length} latest update available`
-                        : "View announcements, specials & deals"}
-                    </Text>
-                  </View>
-                </View>
+                <Text style={styles.checkBusinessButtonText}>Check business</Text>
                 <RightArrowIcon size={16} color={Colors.teal[700]} />
               </TouchableOpacity>
 
@@ -448,6 +485,29 @@ export const MerchantSheet: React.FC<MerchantSheetProps> = ({
                 )}
               </View>
             </View>
+
+            {(postsLoading || postsError || posts.length > 0) && (
+              <View style={styles.postsSection}>
+                <Text style={styles.sectionTitle}>Posts</Text>
+                {postsLoading ? (
+                  <ActivityIndicator color={Colors.teal[700]} />
+                ) : postsError ? (
+                  <Text style={styles.postsEmpty}>
+                    Posts could not be loaded. Please try again later.
+                  </Text>
+                ) : (
+                  posts.map((post) => (
+                    <PostCard
+                      key={post.id}
+                      post={post}
+                      businessName={merchant.name}
+                      businessAvatarUrl={merchant.img}
+                      style={styles.merchantPostCard}
+                    />
+                  ))
+                )}
+              </View>
+            )}
 
             {/* Rate & Review Section */}
             <View style={styles.reviewSectionCard}>
@@ -529,6 +589,83 @@ export const MerchantSheet: React.FC<MerchantSheetProps> = ({
                   </Text>
                 </View>
               )}
+
+              <View style={styles.reviewsList}>
+                <View style={styles.reviewsListHeader}>
+                  <Text style={styles.sectionTitle}>Reviews</Text>
+                  {reviews.length > 0 && (
+                    <Text style={styles.reviewsCount}>
+                      {reviews.length} {reviews.length === 1 ? "review" : "reviews"}
+                    </Text>
+                  )}
+                </View>
+                {reviewsLoading ? (
+                  <ActivityIndicator color={Colors.teal[700]} />
+                ) : reviewsError ? (
+                  <Text style={styles.reviewsEmpty}>
+                    Reviews could not be loaded. Please try again later.
+                  </Text>
+                ) : reviews.length === 0 ? (
+                  <Text style={styles.reviewsEmpty}>
+                    No reviews yet. Be the first to share your experience.
+                  </Text>
+                ) : (
+                  reviews.map((review) => {
+                    const isOwnReview = review.userId === user?.uid;
+                    return (
+                      <View
+                        key={review.id}
+                        style={[
+                          styles.reviewItem,
+                          isOwnReview && styles.ownReviewItem,
+                        ]}
+                      >
+                        <View style={styles.reviewItemHeader}>
+                          {review.avatarUrl ? (
+                            <Image
+                              source={{ uri: review.avatarUrl }}
+                              style={styles.reviewerAvatar}
+                            />
+                          ) : (
+                            <View style={styles.reviewerInitials}>
+                              <Text style={styles.reviewerInitialsText}>
+                                {review.reviewerName.slice(0, 1).toUpperCase()}
+                              </Text>
+                            </View>
+                          )}
+                          <View style={styles.reviewerIdentity}>
+                            <Text style={styles.reviewerName}>
+                              {review.reviewerName}
+                              {isOwnReview ? " · You" : ""}
+                            </Text>
+                            <Text style={styles.reviewDate}>
+                              {reviewDateLabel(review.createdAt)}
+                            </Text>
+                          </View>
+                        </View>
+                        <View style={styles.reviewStars}>
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <StarIcon
+                              key={star}
+                              size={13}
+                              color={
+                                star <= review.rating
+                                  ? Colors.amber[500]
+                                  : Colors.slate[200]
+                              }
+                            />
+                          ))}
+                        </View>
+                        {review.comment ? (
+                          <Text style={styles.reviewComment}>
+                            {review.comment}
+                          </Text>
+                        ) : null}
+                      </View>
+                    );
+                  })
+                )}
+              </View>
             </View>
 
             {/* Location mini-map */}
@@ -626,7 +763,6 @@ export const MerchantSheet: React.FC<MerchantSheetProps> = ({
 
             <View style={{ height: 32 }} />
           </ScrollView>
-          )}
         </View>
       </View>
     </Modal>
@@ -972,177 +1108,34 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     textAlign: "center",
   },
-  postsBanner: {
-    backgroundColor: Colors.teal[50],
-    borderWidth: 1,
-    borderColor: Colors.teal[200],
-    borderRadius: Radius.xl,
-    padding: 14,
+  postsSection: {
+    marginBottom: 16,
+  },
+  postsEmpty: {
+    color: Colors.slate[500],
+    fontSize: 13,
+    textAlign: "center",
+    paddingVertical: 18,
+  },
+  merchantPostCard: {
+    marginBottom: 12,
+  },
+  checkBusinessButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
     marginBottom: 16,
-    ...Shadows.sm,
-  },
-  postsBannerLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    flex: 1,
-    paddingRight: 8,
-  },
-  postsBannerIconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: Radius.full,
-    backgroundColor: Colors.teal[100],
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  postsBannerTitle: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: Colors.teal[900],
-  },
-  postsCountBadge: {
-    backgroundColor: Colors.teal[700],
-    borderRadius: Radius.full,
-    paddingHorizontal: 6,
-    paddingVertical: 1,
-  },
-  postsCountText: {
-    color: Colors.white,
-    fontSize: 10,
-    fontWeight: "700",
-  },
-  postsBannerSub: {
-    fontSize: 12,
-    color: Colors.teal[700],
-    marginTop: 2,
-  },
-  postsViewContainer: {
-    flex: 1,
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-  },
-  postsViewHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.slate[100],
-    marginBottom: 14,
-  },
-  backButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingVertical: 6,
-    paddingHorizontal: 8,
-    borderRadius: Radius.md,
-    backgroundColor: Colors.teal[50],
-  },
-  backButtonText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: Colors.teal[700],
-  },
-  postsViewTitle: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: Colors.slate[800],
-    flex: 1,
-  },
-  postsScrollContent: {
-    paddingBottom: 24,
-    gap: 14,
-  },
-  postsLoadingContainer: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 36,
-    gap: 8,
-  },
-  postsLoadingText: {
-    fontSize: 13,
-    color: Colors.slate[500],
-  },
-  emptyPostsBox: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 40,
-    paddingHorizontal: 20,
-    backgroundColor: Colors.slate[50],
     borderRadius: Radius.xl,
+    backgroundColor: Colors.white,
     borderWidth: 1,
     borderColor: Colors.slate[200],
-    gap: 8,
   },
-  emptyPostsTitle: {
-    fontSize: 15,
+  checkBusinessButtonText: {
+    fontSize: 14,
     fontWeight: "700",
-    color: Colors.slate[800],
-  },
-  emptyPostsSub: {
-    fontSize: 13,
-    color: Colors.slate[500],
-    textAlign: "center",
-    lineHeight: 18,
-  },
-  sheetPostCard: {
-    backgroundColor: Colors.white,
-    borderRadius: Radius.xl,
-    borderWidth: 1,
-    borderColor: Colors.slate[100],
-    overflow: "hidden",
-    ...Shadows.sm,
-  },
-  multiImageScroll: {
-    padding: 8,
-    gap: 8,
-  },
-  postCarouselImage: {
-    width: 220,
-    height: 150,
-    borderRadius: Radius.lg,
-    backgroundColor: Colors.slate[100],
-    marginRight: 8,
-  },
-  postSingleImage: {
-    width: "100%",
-    height: 180,
-    backgroundColor: Colors.slate[100],
-  },
-  sheetPostBody: {
-    padding: 12,
-  },
-  sheetPostMetaRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 6,
-  },
-  postTypeBadge: {
-    backgroundColor: Colors.teal[50],
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: Radius.xs,
-  },
-  postTypeBadgeText: {
-    fontSize: 11,
-    fontWeight: "600",
     color: Colors.teal[700],
-    textTransform: "capitalize",
-  },
-  sheetPostDate: {
-    fontSize: 11,
-    color: Colors.slate[400],
-  },
-  sheetPostCaption: {
-    fontSize: 13,
-    color: Colors.slate[800],
-    lineHeight: 18,
   },
   reviewSectionCard: {
     backgroundColor: Colors.white,
@@ -1235,5 +1228,81 @@ const styles = StyleSheet.create({
     color: Colors.emerald[800],
     fontWeight: "600",
     flex: 1,
+  },
+  reviewsList: {
+    marginTop: 18,
+    gap: 10,
+  },
+  reviewsListHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  reviewsCount: {
+    color: Colors.slate[400],
+    fontSize: 11,
+  },
+  reviewsEmpty: {
+    color: Colors.slate[500],
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  reviewItem: {
+    borderWidth: 1,
+    borderColor: Colors.slate[100],
+    borderRadius: Radius.lg,
+    padding: 12,
+    backgroundColor: Colors.white,
+    gap: 7,
+  },
+  ownReviewItem: {
+    borderColor: Colors.teal[200],
+    backgroundColor: Colors.teal[50],
+  },
+  reviewItemHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 9,
+  },
+  reviewerAvatar: {
+    width: 34,
+    height: 34,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.slate[100],
+  },
+  reviewerInitials: {
+    width: 34,
+    height: 34,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.teal[100],
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  reviewerInitialsText: {
+    color: Colors.teal[800],
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  reviewerIdentity: {
+    flex: 1,
+  },
+  reviewerName: {
+    color: Colors.slate[800],
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  reviewDate: {
+    color: Colors.slate[400],
+    fontSize: 10,
+    marginTop: 2,
+  },
+  reviewStars: {
+    flexDirection: "row",
+    gap: 2,
+  },
+  reviewComment: {
+    color: Colors.slate[700],
+    fontSize: 12,
+    lineHeight: 17,
   },
 });

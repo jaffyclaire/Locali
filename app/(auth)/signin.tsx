@@ -8,33 +8,31 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
-  Modal,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { sendPasswordResetEmail } from "firebase/auth";
-import { auth, isFirebaseConfigured } from "../../src/lib/firebase";
 import { useAuthRole } from "../../src/context/AuthRoleContext";
 import { Colors, Radius, Shadows } from "../../src/constants/theme";
 import { EyeIcon, EyeOffIcon } from "../../src/components/icons/AppIcons";
 import { getReadableAuthErrorMessage } from "../../src/lib/authErrors";
+import { isValidEmail } from "../../src/lib/authValidation";
 
 export default function SignInScreen() {
   const router = useRouter();
-  const { signIn, signInWithGoogle, role } = useAuthRole();
+  const { signIn, signInWithGoogle } = useAuthRole();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [resetModalVisible, setResetModalVisible] = useState(false);
-  const [resetEmail, setResetEmail] = useState("");
-  const [resetLoading, setResetLoading] = useState(false);
-  const [resetMessage, setResetMessage] = useState("");
 
   const handleSignIn = async () => {
     if (!email.trim() || !password) {
       setErrorMessage("Please enter both your email and password.");
+      return;
+    }
+    if (!isValidEmail(email)) {
+      setErrorMessage("Please enter a valid email address.");
       return;
     }
 
@@ -72,34 +70,6 @@ export default function SignInScreen() {
       setErrorMessage(getReadableAuthErrorMessage(err));
     } finally {
       setLoading(false);
-    }
-  };
-
-  const openForgotPassword = () => {
-    setResetEmail(email);
-    setResetMessage("");
-    setResetModalVisible(true);
-  };
-
-  const handlePasswordReset = async () => {
-    if (!resetEmail.trim()) {
-      setResetMessage("Please enter your email address.");
-      return;
-    }
-
-    try {
-      setResetLoading(true);
-      setResetMessage("");
-      if (isFirebaseConfigured()) {
-        await sendPasswordResetEmail(auth, resetEmail.trim());
-      }
-      setResetMessage(
-        "If an account exists for this email, a reset link has been sent."
-      );
-    } catch (err: any) {
-      setResetMessage(getReadableAuthErrorMessage(err));
-    } finally {
-      setResetLoading(false);
     }
   };
 
@@ -180,10 +150,10 @@ export default function SignInScreen() {
 
             <TouchableOpacity
               style={styles.forgotButton}
-              onPress={openForgotPassword}
+              onPress={() => router.push("/(auth)/forgot-password")}
               activeOpacity={0.7}
             >
-              <Text style={styles.forgotText}>Forgot Password?</Text>
+              <Text style={styles.forgotText}>Forgot password?</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -231,68 +201,6 @@ export default function SignInScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* Forgot Password Modal */}
-      <Modal
-        visible={resetModalVisible}
-        animationType="fade"
-        transparent
-        onRequestClose={() => setResetModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Reset Password</Text>
-              <TouchableOpacity onPress={() => setResetModalVisible(false)}>
-                <Text style={styles.modalCloseText}>Cancel</Text>
-              </TouchableOpacity>
-            </View>
-
-            <Text style={styles.modalDescription}>
-              Enter your email address and we'll send you a link to reset your
-              password.
-            </Text>
-
-            <TextInput
-              style={styles.modalInput}
-              value={resetEmail}
-              onChangeText={(text) => {
-                setResetEmail(text);
-                if (resetMessage) setResetMessage("");
-              }}
-              placeholder="you@email.com"
-              placeholderTextColor={Colors.slate[400]}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              editable={!resetLoading}
-            />
-
-            {resetMessage !== "" && (
-              <Text
-                style={[
-                  styles.modalMessage,
-                  resetMessage.includes("reset link has been sent")
-                    ? styles.modalMessageSuccess
-                    : styles.modalMessageError,
-                ]}
-              >
-                {resetMessage}
-              </Text>
-            )}
-
-            <TouchableOpacity
-              style={[
-                styles.modalSubmitButton,
-                resetLoading && styles.buttonDisabled,
-              ]}
-              onPress={handlePasswordReset}
-              disabled={resetLoading}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.modalSubmitButtonText}>Send Reset Link</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }
@@ -482,74 +390,5 @@ const styles = StyleSheet.create({
   eyeButton: {
     paddingHorizontal: 14,
     paddingVertical: 12,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "center",
-    paddingHorizontal: 24,
-  },
-  modalContent: {
-    backgroundColor: Colors.white,
-    borderRadius: Radius["2xl"],
-    padding: 20,
-    ...Shadows.lg,
-  },
-  modalHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 12,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: Colors.slate[800],
-  },
-  modalCloseText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: Colors.slate[500],
-  },
-  modalDescription: {
-    fontSize: 13,
-    color: Colors.slate[600],
-    lineHeight: 18,
-    marginBottom: 16,
-  },
-  modalInput: {
-    borderWidth: 1,
-    borderColor: Colors.slate[200],
-    borderRadius: Radius.xl,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 14,
-    color: Colors.slate[900],
-    backgroundColor: Colors.white,
-    marginBottom: 12,
-  },
-  modalMessage: {
-    fontSize: 13,
-    fontWeight: "500",
-    lineHeight: 18,
-    marginBottom: 12,
-  },
-  modalMessageSuccess: {
-    color: Colors.emerald[700],
-  },
-  modalMessageError: {
-    color: Colors.rose[700],
-  },
-  modalSubmitButton: {
-    backgroundColor: Colors.teal[700],
-    borderRadius: Radius.xl,
-    paddingVertical: 14,
-    alignItems: "center",
-    ...Shadows.sm,
-  },
-  modalSubmitButtonText: {
-    color: Colors.white,
-    fontSize: 14,
-    fontWeight: "700",
   },
 });

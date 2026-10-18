@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Image, StyleSheet, View } from "react-native";
+import { Image, StyleSheet, Text, View } from "react-native";
 import { Colors } from "../constants/theme";
 import { MapViewIcon } from "./icons/AppIcons";
 import { CustomMarker } from "./map/CustomMarker";
@@ -27,19 +27,22 @@ export const TileMapPreview: React.FC<TileMapPreviewProps> = ({
   zoom = 15,
   pinType = "standard",
 }) => {
-  const [hasTileError, setHasTileError] = useState(false);
+  const [failedTileKeys, setFailedTileKeys] = useState<string[]>([]);
   const coordinatesValid =
     Number.isFinite(latitude) &&
     Number.isFinite(longitude) &&
     latitude >= -90 &&
     latitude <= 90 &&
     longitude >= -180 &&
-    longitude <= 180;
+    longitude <= 180 &&
+    // The merchant formatter uses (0, 0) for missing coordinates.
+    !(latitude === 0 && longitude === 0);
 
-  if (!MAPTILER_KEY || !coordinatesValid || hasTileError) {
+  if (!MAPTILER_KEY || !coordinatesValid) {
     return (
       <View style={[styles.fallback, { width, height }]}>
         <MapViewIcon size={26} color={Colors.slate[400]} />
+        <Text style={styles.fallbackText}>Map preview unavailable</Text>
       </View>
     );
   }
@@ -89,6 +92,15 @@ export const TileMapPreview: React.FC<TileMapPreviewProps> = ({
     }
   }
 
+  if (tiles.length === 0 || failedTileKeys.length === tiles.length) {
+    return (
+      <View style={[styles.fallback, { width, height }]}>
+        <MapViewIcon size={26} color={Colors.slate[400]} />
+        <Text style={styles.fallbackText}>Map preview unavailable</Text>
+      </View>
+    );
+  }
+
   return (
     <View style={[styles.container, { width, height }]}>
       {tiles.map((tile) => (
@@ -96,7 +108,11 @@ export const TileMapPreview: React.FC<TileMapPreviewProps> = ({
           key={tile.key}
           source={{ uri: tile.url }}
           style={[styles.tile, { left: tile.left, top: tile.top }]}
-          onError={() => setHasTileError(true)}
+          onError={() =>
+            setFailedTileKeys((previous) =>
+              previous.includes(tile.key) ? previous : [...previous, tile.key]
+            )
+          }
         />
       ))}
       <View pointerEvents="none" style={styles.pin}>
@@ -125,6 +141,11 @@ const styles = StyleSheet.create({
   fallback: {
     alignItems: "center",
     justifyContent: "center",
+    gap: 4,
     backgroundColor: Colors.slate[100],
+  },
+  fallbackText: {
+    color: Colors.slate[500],
+    fontSize: 11,
   },
 });

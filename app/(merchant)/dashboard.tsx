@@ -13,6 +13,7 @@ import { useRouter, useFocusEffect } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Colors, Radius, Shadows } from "../../src/constants/theme";
 import { useAuthRole } from "../../src/context/AuthRoleContext";
+import { PostCard } from "../../src/components/PostCard";
 import {
   CheckIcon,
   LocationIcon,
@@ -180,11 +181,18 @@ export default function MerchantDashboard() {
                 </View>
               </View>
             )}
-            <View style={styles.businessAvatar}>
-              <Text style={styles.businessAvatarText}>
-                {getInitials(merchant?.name)}
-              </Text>
-            </View>
+            {user?.avatarUrl ? (
+              <Image
+                source={{ uri: user.avatarUrl }}
+                style={styles.businessAvatarImage}
+              />
+            ) : (
+              <View style={styles.businessAvatar}>
+                <Text style={styles.businessAvatarText}>
+                  {getInitials(merchant?.name)}
+                </Text>
+              </View>
+            )}
           </View>
         </View>
 
@@ -444,45 +452,24 @@ export default function MerchantDashboard() {
                   </TouchableOpacity>
                 ) : (
                   posts.map((post) => (
-                    <View key={post.id} style={styles.postCard}>
-                      {post.images && post.images.length > 1 ? (
-                        <ScrollView
-                          horizontal
-                          showsHorizontalScrollIndicator={false}
-                          contentContainerStyle={styles.postMultiImageContainer}
+                    <View key={post.id} style={styles.dashboardPostItem}>
+                      <PostCard
+                        post={post}
+                        businessName={merchant.name}
+                        businessAvatarUrl={merchant.img}
+                      />
+                      <View style={styles.postDeleteRow}>
+                        <TouchableOpacity
+                          onPress={async () => {
+                            if (merchant) {
+                              await deleteMerchantPost(String(merchant.id), post.id);
+                              setPosts((prev) => prev.filter((p) => p.id !== post.id));
+                            }
+                          }}
+                          activeOpacity={0.7}
                         >
-                          {post.images.map((imgUri, idx) => (
-                            <Image
-                              key={idx}
-                              source={{ uri: imgUri }}
-                              style={styles.postCarouselImage}
-                              resizeMode="cover"
-                            />
-                          ))}
-                        </ScrollView>
-                      ) : post.image ? (
-                        <Image
-                          source={{ uri: post.image }}
-                          style={styles.postImage}
-                          resizeMode="cover"
-                        />
-                      ) : null}
-                      <View style={styles.postBody}>
-                        <Text style={styles.postCaption}>{post.caption}</Text>
-                        <View style={styles.postMetaRow}>
-                          <Text style={styles.postType}>{post.type}</Text>
-                          <TouchableOpacity
-                            onPress={async () => {
-                              if (merchant) {
-                                await deleteMerchantPost(String(merchant.id), post.id);
-                                setPosts((prev) => prev.filter((p) => p.id !== post.id));
-                              }
-                            }}
-                            activeOpacity={0.7}
-                          >
-                            <Text style={styles.postDelete}>Delete</Text>
-                          </TouchableOpacity>
-                        </View>
+                          <Text style={styles.postDelete}>Delete post</Text>
+                        </TouchableOpacity>
                       </View>
                     </View>
                   ))
@@ -560,6 +547,11 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "700",
     color: Colors.teal[700],
+  },
+  businessAvatarImage: {
+    width: 36,
+    height: 36,
+    borderRadius: Radius.full,
   },
   scrollContent: {
     paddingHorizontal: 16,
@@ -869,54 +861,17 @@ const styles = StyleSheet.create({
     color: Colors.slate[400],
     marginTop: 2,
   },
-  postCard: {
-    backgroundColor: Colors.white,
-    borderRadius: Radius["2xl"],
-    borderWidth: 1,
-    borderColor: Colors.slate[100],
-    overflow: "hidden",
-    ...Shadows.sm,
+  dashboardPostItem: {
+    gap: 6,
   },
-  postImage: {
-    width: "100%",
-    height: 140,
-    backgroundColor: Colors.slate[100],
-  },
-  postBody: {
-    padding: 12,
-  },
-  postCaption: {
-    fontSize: 13,
-    color: Colors.slate[800],
-    lineHeight: 18,
-  },
-  postMetaRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginTop: 8,
-  },
-  postType: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: Colors.teal[700],
-    textTransform: "capitalize",
+  postDeleteRow: {
+    alignItems: "flex-end",
+    paddingHorizontal: 4,
   },
   postDelete: {
     fontSize: 11,
     fontWeight: "600",
     color: Colors.rose[500],
-  },
-  postMultiImageContainer: {
-    padding: 8,
-    gap: 8,
-  },
-  postCarouselImage: {
-    width: 200,
-    height: 140,
-    borderRadius: Radius.lg,
-    backgroundColor: Colors.slate[100],
-    marginRight: 8,
   },
   createPostCard: {
     backgroundColor: Colors.teal[50],
@@ -981,4 +936,3 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
 });
-

@@ -27,17 +27,24 @@ export default function MerchantAccountScreen() {
   const [businessPhotoUrl, setBusinessPhotoUrl] = useState<string | undefined>(undefined);
   const [businessName, setBusinessName] = useState<string | undefined>(undefined);
   const [businessId, setBusinessId] = useState<string | undefined>(undefined);
+  const [expandedLegalSection, setExpandedLegalSection] = useState<
+    "privacy" | "terms" | null
+  >(null);
 
   useEffect(() => {
-    if (user?.uid) {
-      fetchMerchantByOwner(user.uid).then((m) => {
+    const loadBusinessInfo = async () => {
+      try {
+        const m = user?.uid ? await fetchMerchantByOwner(user.uid) : null;
         if (m) {
           setBusinessPhotoUrl(m.coverPhotoUrl || m.img || undefined);
           setBusinessName(m.name || undefined);
           setBusinessId(String(m.id));
         }
-      });
-    }
+      } catch (error) {
+        console.warn("[MerchantAccount] Failed to load business details:", error);
+      }
+    };
+    loadBusinessInfo();
   }, [user?.uid]);
 
   const handleBusinessPhotoUploaded = async (url: string) => {
@@ -144,21 +151,84 @@ export default function MerchantAccountScreen() {
           <View style={styles.cardSection}>
             <Text style={styles.sectionTitle}>BUSINESS & ACCOUNT</Text>
             {[
-              "Privacy & Data",
-              "Terms of Service",
-            ].map((item, idx, arr) => (
-              <TouchableOpacity
-                key={item}
-                style={[
-                  styles.accountRow,
-                  idx === arr.length - 1 && styles.rowLast,
-                ]}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.accountRowLabel}>{item}</Text>
-                <ChevronRight size={18} color={Colors.slate[400]} />
-              </TouchableOpacity>
-            ))}
+              {
+                id: "privacy" as const,
+                title: "Privacy & Data",
+                sections: [
+                  {
+                    heading: "Information used in Locali",
+                    body: "Locali may use account details such as your name, email address, and profile photo, along with the business information you provide, including its name, category, address, hours, photos, and posts.",
+                  },
+                  {
+                    heading: "How information supports the app",
+                    body: "Account and business information is used to show and manage your listing, support discovery by shoppers, and provide app features such as account settings, posts, reviews, and activity.",
+                  },
+                  {
+                    heading: "Your choices",
+                    body: "Review your profile and business listing for accuracy. Locali should provide a way to request access, correction, or deletion of personal information, and explain any applicable retention periods.",
+                  },
+                ],
+              },
+              {
+                id: "terms" as const,
+                title: "Terms of Service",
+                sections: [
+                  {
+                    heading: "Using your account",
+                    body: "Keep your sign-in details private and provide accurate information when using Locali. You are responsible for activity carried out through your account.",
+                  },
+                  {
+                    heading: "Business listings and posts",
+                    body: "As a business owner, keep your listing, address, hours, photos, and posts current. Only share content that you are authorized to publish and that follows applicable laws.",
+                  },
+                  {
+                    heading: "Service terms",
+                    body: "Use of Locali is subject to applicable policies and laws. Contact Locali with questions about these terms.",
+                  },
+                ],
+              },
+            ].map((item, index, allItems) => {
+              const isExpanded = expandedLegalSection === item.id;
+              return (
+                <View
+                  key={item.id}
+                  style={index === allItems.length - 1 ? styles.rowLast : undefined}
+                >
+                  <TouchableOpacity
+                    style={[
+                      styles.accountRow,
+                      isExpanded && styles.accountRowExpanded,
+                    ]}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityState={{ expanded: isExpanded }}
+                    onPress={() =>
+                      setExpandedLegalSection((current) =>
+                        current === item.id ? null : item.id
+                      )
+                    }
+                  >
+                    <Text style={styles.accountRowLabel}>{item.title}</Text>
+                    <ChevronRight
+                      size={18}
+                      color={isExpanded ? Colors.teal[700] : Colors.slate[400]}
+                    />
+                  </TouchableOpacity>
+                  {isExpanded && (
+                    <View style={styles.legalContent}>
+                      {item.sections.map((section) => (
+                        <View key={section.heading} style={styles.legalSection}>
+                          <Text style={styles.legalHeading}>
+                            {section.heading}
+                          </Text>
+                          <Text style={styles.legalBody}>{section.body}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+                </View>
+              );
+            })}
           </View>
 
           {/* Sign Out Button */}
@@ -326,6 +396,28 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: Colors.slate[100],
   },
+  accountRowExpanded: {
+    borderBottomWidth: 0,
+  },
+  legalContent: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    gap: 12,
+    backgroundColor: Colors.slate[50],
+  },
+  legalSection: {
+    gap: 4,
+  },
+  legalHeading: {
+    color: Colors.slate[800],
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  legalBody: {
+    color: Colors.slate[600],
+    fontSize: 12,
+    lineHeight: 18,
+  },
   rowLast: {
     borderBottomWidth: 0,
   },
@@ -349,4 +441,3 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 });
-

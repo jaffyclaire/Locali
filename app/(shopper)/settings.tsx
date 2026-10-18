@@ -5,7 +5,6 @@ import {
   TouchableOpacity,
   ScrollView,
   StyleSheet,
-  Platform,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -14,9 +13,32 @@ import { Colors, Radius, Shadows } from "../../src/constants/theme";
 import { ChevronRight } from "../../src/components/icons/AppIcons";
 import { ProfileCard } from "../../src/components/common/ProfileCard";
 import {
+  getUserSavedCount,
   getUserNotificationPreferences,
   updateNotificationPreferences,
 } from "../../src/services/firestoreService";
+import { getUserReviewCount } from "../../src/services/merchantCommunityService";
+
+const formatMemberSince = (createdAt?: unknown): string => {
+  let date: Date | null = null;
+  if (createdAt instanceof Date) {
+    date = createdAt;
+  } else if (
+    createdAt &&
+    typeof createdAt === "object" &&
+    "toDate" in createdAt &&
+    typeof createdAt.toDate === "function"
+  ) {
+    const result: unknown = createdAt.toDate();
+    if (result instanceof Date) date = result;
+  } else if (typeof createdAt === "string" || typeof createdAt === "number") {
+    const result = new Date(createdAt);
+    if (!Number.isNaN(result.getTime())) date = result;
+  }
+  return date
+    ? date.toLocaleDateString(undefined, { month: "short", year: "numeric" })
+    : "Recently joined";
+};
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -25,6 +47,22 @@ export default function SettingsScreen() {
   const [proximityAlerts, setProximityAlerts] = useState(true);
   const [merchantAlerts, setMerchantAlerts] = useState(true);
   const [dealAlerts, setDealAlerts] = useState(false);
+  const [accountStats, setAccountStats] = useState<{
+    userId: string;
+    saved: number;
+    reviews: number;
+    error: boolean;
+  } | null>(null);
+  const accountStatsLoading =
+    Boolean(user?.uid) && accountStats?.userId !== user?.uid;
+  const accountStatsError =
+    Boolean(user?.uid) &&
+    accountStats?.userId === user?.uid &&
+    accountStats?.error === true;
+  const savedCount =
+    accountStats && accountStats.userId === user?.uid ? accountStats.saved : 0;
+  const reviewCount =
+    accountStats && accountStats.userId === user?.uid ? accountStats.reviews : 0;
 
   // Load saved preferences from Firestore
   useEffect(() => {
@@ -36,6 +74,30 @@ export default function SettingsScreen() {
         if (typeof prefs.dealAlerts === "boolean") setDealAlerts(prefs.dealAlerts);
       }
     });
+  }, [user?.uid]);
+
+  useEffect(() => {
+    if (!user?.uid) return;
+
+    const loadAccountStats = async () => {
+      try {
+        const [saved, reviews] = await Promise.all([
+          getUserSavedCount(user.uid),
+          getUserReviewCount(user.uid),
+        ]);
+        setAccountStats({ userId: user.uid, saved, reviews, error: false });
+      } catch (error) {
+        console.warn("[SettingsScreen] Failed to load account stats:", error);
+        setAccountStats({
+          userId: user.uid,
+          saved: 0,
+          reviews: 0,
+          error: true,
+        });
+      }
+    };
+
+    loadAccountStats();
   }, [user?.uid]);
 
   const handleToggle = useCallback(
@@ -61,7 +123,7 @@ export default function SettingsScreen() {
         updateNotificationPreferences(user.uid, prefs);
       }
     },
-    [proximityAlerts, merchantAlerts, dealAlerts, user?.uid]
+    [proximityAlerts, merchantAlerts, dealAlerts, user]
   );
 
   const handleSignOut = async () => {
@@ -152,7 +214,44 @@ export default function SettingsScreen() {
           {/* Account Section */}
           <View style={styles.cardSection}>
             <Text style={styles.sectionTitle}>ACCOUNT</Text>
-            {["Privacy & Data", "Help & Support", "About LocalFind"].map(
+            {[
+              { label: "Email", value: user?.email || "Not available" },
+              {
+                label: "Member since",
+                value: formatMemberSince(user?.createdAt),
+              },
+              {
+                label: "Saved shops",
+                value: accountStatsLoading ? "Loading…" : String(savedCount),
+              },
+              {
+                label: "Reviews written",
+                value: accountStatsLoading ? "Loading…" : String(reviewCount),
+              },
+              {
+                label: "Default location",
+                value: user?.location?.label || "Not set",
+              },
+            ].map((item, idx, arr) => (
+              <View
+                key={item.label}
+                style={[
+                  styles.accountDataRow,
+                  idx === arr.length - 1 && styles.rowLast,
+                ]}
+              >
+                <Text style={styles.accountRowLabel}>{item.label}</Text>
+                <Text style={styles.accountValue} numberOfLines={1}>
+                  {item.value}
+                </Text>
+              </View>
+            ))}
+            {accountStatsError && (
+              <Text style={styles.accountStatsError}>
+                Some account totals could not be loaded.
+              </Text>
+            )}
+            {["Privacy & Data", "Help & Support", "About Locali"].map(
               (item, idx, arr) => (
                 <TouchableOpacity
                   key={item}
@@ -328,6 +427,23 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: Colors.slate[100],
   },
+  accountDataRow: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.slate[100],
+  },
+  accountValue: {
+    color: Colors.slate[500],
+    fontSize: 12,
+    marginTop: 3,
+  },
+  accountStatsError: {
+    color: Colors.rose[600],
+    fontSize: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
   rowLast: {
     borderBottomWidth: 0,
   },
@@ -351,4 +467,3 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 });
-

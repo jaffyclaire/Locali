@@ -6,16 +6,19 @@ import {
   TouchableOpacity,
   ScrollView,
   FlatList,
+  ActivityIndicator,
   StyleSheet,
   Dimensions,
   Platform,
 } from "react-native";
-// Loading state tracked via console.log only — no visual loading indicators
 import MerchantMap, {
   MerchantMapHandle,
 } from "../../src/components/MerchantMap";
 import * as Location from "expo-location";
-import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import { MapMerchant, Merchant } from "../../src/types";
 import { Colors, Radius, Shadows } from "../../src/constants/theme";
 import {
@@ -32,11 +35,15 @@ import { TileMapPreview } from "../../src/components/TileMapPreview";
 import { MerchantSheet } from "../../src/components/common/MerchantSheet";
 import { MerchantPhoto } from "../../src/components/common/MerchantPhoto";
 import { FilterSheet } from "../../src/components/common/FilterSheet";
-import { fetchMerchants, fetchCategories } from "../../src/services/firestoreService";
+import {
+  fetchMerchants,
+  fetchCategories,
+} from "../../src/services/firestoreService";
 import { openDirections } from "../../src/services/directionsService";
 import { useAuthRole } from "../../src/context/AuthRoleContext";
 
 const { width } = Dimensions.get("window");
+
 const DEFAULT_CENTER = {
   latitude: 37.7752,
   longitude: -122.4196,
@@ -55,9 +62,9 @@ const PIN_COLOR: Record<MapMerchant["type"], string> = {
 };
 
 export default function DiscoverScreen() {
+  const insets = useSafeAreaInsets();
   const { user } = useAuthRole();
   const [query, setQuery] = useState("");
-  const [viewMode, setViewMode] = useState<"list" | "map">("list");
   const [activeCategory, setActiveCategory] = useState("All");
   const [statusFilter, setStatusFilter] = useState<"" | "open" | "verified" | "sponsored">("");
   const [activeMarker, setActiveMarker] = useState<MapMerchant | null>(null);
@@ -69,6 +76,9 @@ export default function DiscoverScreen() {
   const [merchants, setMerchants] = useState<MapMerchant[]>([]);
   const [categories, setCategories] = useState<string[]>(["All"]);
   const [loading, setLoading] = useState(true);
+  const [listError, setListError] = useState(false);
+  const [viewMode, setViewMode] = useState<"list" | "map">("list");
+  const activeViewMode = viewMode;
 
   const mapRef = useRef<MerchantMapHandle | null>(null);
   const carouselRef = useRef<FlatList>(null);
@@ -87,11 +97,11 @@ export default function DiscoverScreen() {
           fetchMerchants(),
           fetchCategories(),
         ]);
-        console.log("[DiscoverScreen] Fetched merchants:", merchantsData.length, "categories:", categoriesData.length);
         setMerchants(merchantsData);
         setCategories(categoriesData.length > 0 ? ["All", ...categoriesData] : ["All"]);
       } catch (error) {
         console.error("[DiscoverScreen] Error loading data:", error);
+        setListError(true);
       } finally {
         setLoading(false);
       }
@@ -113,6 +123,73 @@ export default function DiscoverScreen() {
     const matchFilterSheetOpen = !filterOpenNow || m.isOpen;
     return matchCat && matchQ && matchStatus && matchFilterSheetOpen;
   });
+
+  const renderCategoryFilters = () => (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={styles.filterChipsRow}
+    >
+      {categories.map((cat) => {
+        const active = activeCategory === cat;
+        return (
+          <TouchableOpacity
+            key={cat}
+            onPress={() => setActiveCategory(cat)}
+            style={[
+              styles.chip,
+              active ? styles.chipActive : styles.chipInactive,
+            ]}
+            activeOpacity={0.75}
+          >
+            <Text
+              style={[
+                styles.chipText,
+                active ? styles.chipTextActive : styles.chipTextInactive,
+              ]}
+            >
+              {cat}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
+
+      <View style={styles.chipDivider} />
+
+      {STATUS_TOGGLES.map((toggle) => {
+        const active = statusFilter === toggle.id;
+        const isSponsored = toggle.id === "sponsored";
+        return (
+          <TouchableOpacity
+            key={toggle.id}
+            onPress={() =>
+              setStatusFilter((previous) =>
+                previous === toggle.id ? "" : toggle.id
+              )
+            }
+            style={[
+              styles.chip,
+              active
+                ? isSponsored
+                  ? styles.chipActiveAmber
+                  : styles.chipActiveEmerald
+                : styles.chipInactive,
+            ]}
+            activeOpacity={0.75}
+          >
+            <Text
+              style={[
+                styles.chipText,
+                active ? styles.chipTextActive : styles.chipTextInactive,
+              ]}
+            >
+              {toggle.label}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
+    </ScrollView>
+  );
 
   const handleRecenter = async () => {
     try {
@@ -172,8 +249,6 @@ export default function DiscoverScreen() {
 
   const isFilterActive = filterOpenNow || filterVerified || distanceKm !== 5;
 
-  console.log("[DiscoverScreen] loading:", loading, "merchants:", merchants.length, "filtered:", filtered.length);
-
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
       <View style={styles.container}>
@@ -220,18 +295,18 @@ export default function DiscoverScreen() {
               onPress={() => setViewMode("list")}
               style={[
                 styles.segmentTab,
-                viewMode === "list" && styles.segmentTabActive,
+                activeViewMode === "list" && styles.segmentTabActive,
               ]}
               activeOpacity={0.8}
             >
               <ListViewIcon
                 size={14}
-                color={viewMode === "list" ? Colors.white : Colors.slate[600]}
+                color={activeViewMode === "list" ? Colors.white : Colors.slate[600]}
               />
               <Text
                 style={[
                   styles.segmentTabText,
-                  viewMode === "list" && styles.segmentTabTextActive,
+                  activeViewMode === "list" && styles.segmentTabTextActive,
                 ]}
               >
                 List View
@@ -242,18 +317,18 @@ export default function DiscoverScreen() {
               onPress={() => setViewMode("map")}
               style={[
                 styles.segmentTab,
-                viewMode === "map" && styles.segmentTabActive,
+                activeViewMode === "map" && styles.segmentTabActive,
               ]}
               activeOpacity={0.8}
             >
               <MapViewIcon
                 size={14}
-                color={viewMode === "map" ? Colors.white : Colors.slate[600]}
+                color={activeViewMode === "map" ? Colors.white : Colors.slate[600]}
               />
               <Text
                 style={[
                   styles.segmentTabText,
-                  viewMode === "map" && styles.segmentTabTextActive,
+                  activeViewMode === "map" && styles.segmentTabTextActive,
                 ]}
               >
                 Map View
@@ -261,102 +336,59 @@ export default function DiscoverScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Horizontal Category + Status Filters */}
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.filterChipsRow}
-          >
-            {categories.map((cat) => {
-              const active = activeCategory === cat;
-              return (
-                <TouchableOpacity
-                  key={cat}
-                  onPress={() => setActiveCategory(cat)}
-                  style={[
-                    styles.chip,
-                    active ? styles.chipActive : styles.chipInactive,
-                  ]}
-                  activeOpacity={0.75}
-                >
-                  <Text
-                    style={[
-                      styles.chipText,
-                      active ? styles.chipTextActive : styles.chipTextInactive,
-                    ]}
-                  >
-                    {cat}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-
-            <View style={styles.chipDivider} />
-
-            {STATUS_TOGGLES.map((t) => {
-              const active = statusFilter === t.id;
-              const isSponsored = t.id === "sponsored";
-              return (
-                <TouchableOpacity
-                  key={t.id}
-                  onPress={() =>
-                    setStatusFilter((prev) => (prev === t.id ? "" : t.id))
-                  }
-                  style={[
-                    styles.chip,
-                    active
-                      ? isSponsored
-                        ? styles.chipActiveAmber
-                        : styles.chipActiveEmerald
-                      : styles.chipInactive,
-                  ]}
-                  activeOpacity={0.75}
-                >
-                  <Text
-                    style={[
-                      styles.chipText,
-                      active ? styles.chipTextActive : styles.chipTextInactive,
-                    ]}
-                  >
-                    {t.label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
+          {activeViewMode === "map" && renderCategoryFilters()}
         </View>
 
         {/* ── LIST VIEW ── */}
-        {viewMode === "list" ? (
-          <ScrollView
+        {activeViewMode === "list" ? (
+          <FlatList
+            data={filtered}
+            keyExtractor={(item) => String(item.id)}
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.listContainer}
-          >
-            {(() => { console.log("[DiscoverScreen] RENDERING merchants:", filtered.map((m) => m.name)); return null; })()}
-            {filtered.length === 0 ? (
-              <View style={styles.emptyContainer}>
-                <Text style={styles.emptyTitle}>No results found</Text>
-                <TouchableOpacity
-                  onPress={() => {
-                    setQuery("");
-                    setActiveCategory("All");
-                    setStatusFilter("");
-                    setFilterOpenNow(false);
-                    setFilterVerified(false);
-                  }}
-                  style={styles.clearFiltersButton}
-                >
-                  <Text style={styles.clearFiltersText}>Clear Filters</Text>
-                </TouchableOpacity>
-              </View>
-            ) : (
-              filtered.map((m) => (
-                <TouchableOpacity
-                  key={m.id}
-                  style={styles.listItemCard}
-                  onPress={() => setSelectedMerchant(m)}
-                  activeOpacity={0.88}
-                >
+            contentContainerStyle={[
+              styles.listContainer,
+              { paddingBottom: 24 + insets.bottom },
+            ]}
+            ListHeaderComponent={renderCategoryFilters()}
+            ListEmptyComponent={
+              loading ? (
+                <View style={styles.listState}>
+                  <ActivityIndicator color={Colors.teal[700]} />
+                  <Text style={styles.listStateText}>Loading businesses...</Text>
+                </View>
+              ) : listError ? (
+                <View style={styles.listState}>
+                  <Text style={styles.emptyTitle}>
+                    Businesses could not be loaded
+                  </Text>
+                  <Text style={styles.listStateText}>
+                    Please check your connection and try again.
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.emptyContainer}>
+                  <Text style={styles.emptyTitle}>No results found</Text>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setQuery("");
+                      setActiveCategory("All");
+                      setStatusFilter("");
+                      setFilterOpenNow(false);
+                      setFilterVerified(false);
+                    }}
+                    style={styles.clearFiltersButton}
+                  >
+                    <Text style={styles.clearFiltersText}>Clear Filters</Text>
+                  </TouchableOpacity>
+                </View>
+              )
+            }
+            renderItem={({ item: m }) => (
+              <TouchableOpacity
+                style={styles.listItemCard}
+                onPress={() => setSelectedMerchant(m)}
+                activeOpacity={0.88}
+              >
                   {/* Top row */}
                   <View style={styles.cardHeaderRow}>
                     <MerchantPhoto uri={m.img} style={styles.cardAvatar} />
@@ -441,11 +473,9 @@ export default function DiscoverScreen() {
                       </Text>
                     </TouchableOpacity>
                   </View>
-                </TouchableOpacity>
-              ))
+              </TouchableOpacity>
             )}
-            <View style={{ height: 24 }} />
-          </ScrollView>
+          />
         ) : (
           /* ── MAP VIEW ── */
           <View style={styles.mapContainer}>
@@ -716,6 +746,18 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 20,
     gap: 14,
+  },
+  listState: {
+    minHeight: 180,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    padding: 20,
+  },
+  listStateText: {
+    color: Colors.slate[500],
+    fontSize: 13,
+    textAlign: "center",
   },
   emptyContainer: {
     alignItems: "center",

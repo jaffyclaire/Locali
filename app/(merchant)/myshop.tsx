@@ -26,6 +26,7 @@ import {
 } from "../../src/components/icons/AppIcons";
 import { HolidayClosureCard } from "../../src/components/common/HolidayClosureCard";
 import { LocationPicker } from "../../src/components/common/LocationPicker";
+import { PostCard } from "../../src/components/PostCard";
 import { useAuthRole } from "../../src/context/AuthRoleContext";
 import {
   fetchMerchantByOwner,
@@ -466,34 +467,12 @@ export default function MerchantMyShop() {
               <View style={styles.previewPostsSection}>
                 <Text style={styles.previewPostsTitle}>Posts</Text>
                 {posts.map((post) => (
-                  <View key={post.id} style={styles.previewPostCard}>
-                    {post.images && post.images.length > 1 ? (
-                      <ScrollView
-                        horizontal
-                        showsHorizontalScrollIndicator={false}
-                        contentContainerStyle={styles.previewMultiImageScroll}
-                      >
-                        {post.images.map((imgUri, idx) => (
-                          <Image
-                            key={idx}
-                            source={{ uri: imgUri }}
-                            style={styles.previewCarouselImage}
-                            resizeMode="cover"
-                          />
-                        ))}
-                      </ScrollView>
-                    ) : post.image ? (
-                      <Image
-                        source={{ uri: post.image }}
-                        style={styles.previewPostImage}
-                        resizeMode="cover"
-                      />
-                    ) : null}
-                    <View style={styles.previewPostBody}>
-                      <Text style={styles.previewPostCaption}>{post.caption}</Text>
-                      <Text style={styles.previewPostType}>{post.type}</Text>
-                    </View>
-                  </View>
+                  <PostCard
+                    key={post.id}
+                    post={post}
+                    businessName={merchant?.name || "Your business"}
+                    businessAvatarUrl={merchant?.img}
+                  />
                 ))}
               </View>
             )}
@@ -616,32 +595,11 @@ export default function MerchantMyShop() {
                       <Text style={styles.currentPostEdit}>New Post</Text>
                     </TouchableOpacity>
                   </View>
-                  {posts[0].images && posts[0].images.length > 1 ? (
-                    <ScrollView
-                      horizontal
-                      showsHorizontalScrollIndicator={false}
-                      contentContainerStyle={styles.currentPostMultiImageScroll}
-                    >
-                      {posts[0].images.map((imgUri, idx) => (
-                        <Image
-                          key={idx}
-                          source={{ uri: imgUri }}
-                          style={styles.currentPostCarouselImage}
-                          resizeMode="cover"
-                        />
-                      ))}
-                    </ScrollView>
-                  ) : posts[0].image ? (
-                    <Image
-                      source={{ uri: posts[0].image }}
-                      style={styles.currentPostImage}
-                      resizeMode="cover"
-                    />
-                  ) : null}
-                  <View style={styles.currentPostBody}>
-                    <Text style={styles.currentPostCaption}>{posts[0].caption}</Text>
-                    <Text style={styles.currentPostType}>{posts[0].type}</Text>
-                  </View>
+                  <PostCard
+                    post={posts[0]}
+                    businessName={merchant.name}
+                    businessAvatarUrl={merchant.img}
+                  />
                 </View>
               )}
 
@@ -1469,34 +1427,6 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: Colors.slate[800],
   },
-  previewPostCard: {
-    backgroundColor: Colors.white,
-    borderRadius: Radius["2xl"],
-    borderWidth: 1,
-    borderColor: Colors.slate[100],
-    overflow: "hidden",
-    ...Shadows.sm,
-  },
-  previewPostImage: {
-    width: "100%",
-    height: 160,
-    backgroundColor: Colors.slate[100],
-  },
-  previewPostBody: {
-    padding: 12,
-  },
-  previewPostCaption: {
-    fontSize: 13,
-    color: Colors.slate[800],
-    lineHeight: 18,
-  },
-  previewPostType: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: Colors.teal[700],
-    textTransform: "capitalize",
-    marginTop: 4,
-  },
   currentPostHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -1512,48 +1442,5 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
     color: Colors.teal[700],
-  },
-  currentPostImage: {
-    width: "100%",
-    height: 140,
-    borderRadius: Radius.xl,
-    backgroundColor: Colors.slate[100],
-    marginBottom: 12,
-  },
-  currentPostBody: {
-    gap: 4,
-  },
-  currentPostCaption: {
-    fontSize: 14,
-    color: Colors.slate[800],
-    lineHeight: 19,
-  },
-  currentPostType: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: Colors.teal[700],
-    textTransform: "capitalize",
-  },
-
-  previewMultiImageScroll: {
-    gap: 8,
-    paddingHorizontal: 12,
-    paddingTop: 12,
-  },
-  previewCarouselImage: {
-    width: 200,
-    height: 160,
-    borderRadius: Radius.lg,
-    backgroundColor: Colors.slate[100],
-  },
-  currentPostMultiImageScroll: {
-    gap: 8,
-    marginBottom: 12,
-  },
-  currentPostCarouselImage: {
-    width: 180,
-    height: 130,
-    borderRadius: Radius.lg,
-    backgroundColor: Colors.slate[100],
   },
 });

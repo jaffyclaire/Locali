@@ -92,6 +92,8 @@ export interface HeroAd {
 
 export interface SponsoredCardItem {
   id: string | number;
+  merchantId?: string | number;
+  businessName?: string;
   name: string;
   category: string;
   distance: string;
@@ -183,4 +185,3 @@ export interface MerchantPost {
   type: string;
   createdAt: any;
 }
-

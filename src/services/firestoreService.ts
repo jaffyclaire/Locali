@@ -174,6 +174,22 @@ export const fetchSponsoredCards = async (): Promise<SponsoredCardItem[]> => {
       const data = d.data();
       return {
         id: d.id,
+        merchantId:
+          typeof data.merchantId === "string" ||
+          typeof data.merchantId === "number"
+            ? data.merchantId
+            : typeof data.businessId === "string" ||
+              typeof data.businessId === "number"
+            ? data.businessId
+            : undefined,
+        businessName:
+          typeof data.businessName === "string"
+            ? data.businessName
+            : typeof data.merchantName === "string"
+            ? data.merchantName
+            : typeof data.merchant === "string"
+            ? data.merchant
+            : undefined,
         name: data.headline || data.name || "Special Promotion",
         category: data.sub || data.category || "Deal",
         distance: data.distance || "Nearby",
@@ -189,7 +205,7 @@ export const fetchSponsoredCards = async (): Promise<SponsoredCardItem[]> => {
     });
   } catch (err) {
     console.error("[firestoreService] fetchSponsoredCards error:", err);
-    return [];
+    throw err;
   }
 };
 
@@ -1458,4 +1474,3 @@ export const fetchUserMerchantReview = async (
     return null;
   }
 };
-

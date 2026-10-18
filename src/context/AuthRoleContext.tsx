@@ -12,6 +12,7 @@ import {
   signInWithCredential,
   GoogleAuthProvider,
   createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
   signOut as firebaseSignOut,
   User as FirebaseUser,
 } from "firebase/auth";
@@ -50,6 +51,7 @@ interface AuthRoleContextType {
   firebaseUser: FirebaseUser | null;
   signIn: (email?: string, password?: string) => Promise<Role>;
   signInWithGoogle: () => Promise<Role>;
+  resetPassword: (email: string) => Promise<void>;
   signUp: (
     email: string,
     password: string,
@@ -80,6 +82,26 @@ const getInitials = (name: string): string => {
   const parts = name.trim().split(" ");
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+};
+
+const getFallbackProfile = (authUser: FirebaseUser): UserProfile => {
+  const fullName =
+    authUser.displayName || authUser.email?.split("@")[0] || "User";
+  return {
+    uid: authUser.uid,
+    fullName,
+    name: fullName,
+    email: authUser.email || "",
+    initials: getInitials(fullName),
+    avatarUrl: authUser.photoURL || "",
+    role: "shopper",
+    interests: [],
+    notificationPreferences: {
+      proximityAlerts: true,
+      merchantAlerts: true,
+      dealAlerts: false,
+    },
+  };
 };
 
 const AuthRoleContext = createContext<AuthRoleContextType | undefined>(undefined);
@@ -137,26 +159,11 @@ const saveUserFromFirebaseAuth = async (authUser: FirebaseUser) => {
     return { userRole, userProfile };
   }
 
-  const fallbackName = authUser.displayName || authUser.email?.split("@")[0] || "User";
-  const fallbackProfile: UserProfile = {
-    uid: authUser.uid,
-    fullName: fallbackName,
-    name: fallbackName,
-    email: authUser.email || "",
-    initials: getInitials(fallbackName),
-    avatarUrl: authUser.photoURL || "",
-    role: "shopper",
-    interests: [],
-    notificationPreferences: {
-      proximityAlerts: true,
-      merchantAlerts: true,
-      dealAlerts: false,
-    },
-  };
+  const fallbackProfile = getFallbackProfile(authUser);
 
   await setDoc(userDocRef, {
     email: authUser.email || "",
-    fullName: fallbackName,
+    fullName: fallbackProfile.fullName,
     photoURL: authUser.photoURL || "",
     role: "shopper",
     createdAt: serverTimestamp(),
@@ -192,6 +199,10 @@ export const AuthRoleProvider: React.FC<{ children: ReactNode }> = ({
     const unsubscribe = onAuthStateChanged(auth, async (authUser) => {
       setIsLoading(true);
       if (authUser) {
+        setFirebaseUser(authUser);
+        setIsAuthenticated(true);
+        setUser(getFallbackProfile(authUser));
+        setRoleState("shopper");
         try {
           const savedUser = await saveUserFromFirebaseAuth(authUser);
           if (!savedUser) {
@@ -227,6 +238,8 @@ export const AuthRoleProvider: React.FC<{ children: ReactNode }> = ({
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       setFirebaseUser(userCredential.user);
       setIsAuthenticated(true);
+      setUser(getFallbackProfile(userCredential.user));
+      setRoleState("shopper");
 
       try {
         const savedUser = await saveUserFromFirebaseAuth(userCredential.user);
@@ -320,6 +333,23 @@ export const AuthRoleProvider: React.FC<{ children: ReactNode }> = ({
       }
       console.warn("Google sign-in error:", err);
       throw err;
+    }
+  };
+
+  const resetPassword = async (email: string): Promise<void> => {
+    const normalizedEmail = email.trim().toLowerCase();
+    try {
+      await sendPasswordResetEmail(auth, normalizedEmail);
+    } catch (error: unknown) {
+      if (
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        error.code === "auth/user-not-found"
+      ) {
+        return;
+      }
+      throw error;
     }
   };
 
@@ -426,6 +456,7 @@ export const AuthRoleProvider: React.FC<{ children: ReactNode }> = ({
         firebaseUser,
         signIn,
         signInWithGoogle,
+        resetPassword,
         signUp,
         signOut,
         updateUser,

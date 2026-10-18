@@ -7,10 +7,11 @@ import {
   ScrollView,
   StyleSheet,
   Modal,
+  ActivityIndicator,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import { MapMerchant, SponsoredCardItem, UserLocation } from "../../src/types";
+import { MapMerchant, MerchantPost, UserLocation } from "../../src/types";
 import { Colors, Radius, Shadows } from "../../src/constants/theme";
 import {
   LocationIcon,
@@ -21,22 +22,58 @@ import {
 } from "../../src/components/icons/AppIcons";
 import { HeroAdCarousel } from "../../src/components/common/HeroAdCarousel";
 import { MerchantPhoto } from "../../src/components/common/MerchantPhoto";
-import { SponsoredCard } from "../../src/components/common/SponsoredCard";
 import { MerchantSheet } from "../../src/components/common/MerchantSheet";
+import { PostCard } from "../../src/components/PostCard";
 import { LocationPicker } from "../../src/components/common/LocationPicker";
 import { AddressPinState } from "../../src/hooks/useAddressPin";
-import { fetchMerchants, fetchSponsoredCards } from "../../src/services/firestoreService";
+import {
+  fetchMerchants,
+} from "../../src/services/firestoreService";
+import { fetchMerchantPostsForCustomer } from "../../src/services/merchantCommunityService";
 import { haversineDistanceKm, isMerchantOpenNow } from "../../src/services/geocodingService";
 import { useAuthRole } from "../../src/context/AuthRoleContext";
 
+interface HomeFeedPost {
+  merchant: MapMerchant;
+  post: MerchantPost;
+}
+
+const timestampMillis = (value: unknown): number => {
+  if (value instanceof Date) return value.getTime();
+  if (typeof value === "number" || typeof value === "string") {
+    const milliseconds = new Date(value).getTime();
+    return Number.isFinite(milliseconds) ? milliseconds : 0;
+  }
+  if (value && typeof value === "object" && "toMillis" in value) {
+    const toMillis = value.toMillis;
+    if (typeof toMillis === "function") {
+      const milliseconds: unknown = toMillis.call(value);
+      if (typeof milliseconds === "number") return milliseconds;
+    }
+  }
+  if (value && typeof value === "object" && "toDate" in value) {
+    const toDate = value.toDate;
+    if (typeof toDate === "function") {
+      const date: unknown = toDate.call(value);
+      if (date instanceof Date) return date.getTime();
+    }
+  }
+  return 0;
+};
+
 export default function HomeScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { user, updateUser } = useAuthRole();
   const [activeFilter, setActiveFilter] = useState("Nearby");
   const [selectedMerchant, setSelectedMerchant] = useState<MapMerchant | null>(null);
   const [merchants, setMerchants] = useState<MapMerchant[]>([]);
-  const [sponsoredCards, setSponsoredCards] = useState<SponsoredCardItem[]>([]);
+  const [businessPosts, setBusinessPosts] = useState<HomeFeedPost[]>([]);
+  const [businessPostsLoading, setBusinessPostsLoading] = useState(true);
+  const [businessPostsError, setBusinessPostsError] = useState(false);
+  const [showMoreBusinessPosts, setShowMoreBusinessPosts] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [merchantsError, setMerchantsError] = useState(false);
   const [locationPickerVisible, setLocationPickerVisible] = useState(false);
   const [userLocation, setUserLocation] = useState<UserLocation | null>(
     user?.location || null
@@ -47,16 +84,41 @@ export default function HomeScreen() {
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
+      setMerchantsError(false);
+      setBusinessPostsLoading(true);
+      setBusinessPostsError(false);
       try {
-        const [merchantsData, sponsoredData] = await Promise.all([
-          fetchMerchants(),
-          fetchSponsoredCards(),
-        ]);
+        const merchantsData = await fetchMerchants();
         setMerchants(merchantsData);
-        setSponsoredCards(sponsoredData);
+        const postResults = await Promise.allSettled(
+          merchantsData.map(async (merchant) => ({
+            merchant,
+            posts: await fetchMerchantPostsForCustomer(String(merchant.id)),
+          }))
+        );
+        const loadedPosts = postResults.flatMap((result) =>
+          result.status === "fulfilled"
+            ? result.value.posts.map((post) => ({
+                merchant: result.value.merchant,
+                post,
+              }))
+            : []
+        );
+        loadedPosts.sort(
+          (a, b) =>
+            timestampMillis(b.post.createdAt) -
+            timestampMillis(a.post.createdAt)
+        );
+        setBusinessPosts(loadedPosts);
+        setBusinessPostsError(
+          postResults.some((result) => result.status === "rejected")
+        );
       } catch (error) {
         console.error("[HomeScreen] Error loading data:", error);
+        setMerchantsError(true);
+        setBusinessPostsError(true);
       } finally {
+        setBusinessPostsLoading(false);
         setLoading(false);
       }
     };
@@ -93,6 +155,12 @@ export default function HomeScreen() {
   };
 
   const filteredMerchants = getFilteredMerchants();
+  const shortLocation = userLocation?.label
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .slice(0, 2)
+    .join(", ");
 
   const handleOpenPicker = () => {
     setPickerState(
@@ -120,8 +188,6 @@ export default function HomeScreen() {
     }
   };
 
-  console.log("[HomeScreen] loading:", loading, "merchants:", merchants.length, "sponsoredCards:", sponsoredCards.length);
-
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
       <View style={styles.container}>
@@ -134,8 +200,12 @@ export default function HomeScreen() {
               onPress={handleOpenPicker}
             >
               <LocationIcon size={16} color={Colors.teal[700]} />
-              <Text style={styles.locationText}>
-                {userLocation?.label || "Choose location"}
+              <Text
+                style={styles.locationText}
+                numberOfLines={1}
+                ellipsizeMode="tail"
+              >
+                {shortLocation || "Choose location"}
               </Text>
               <ChevronDownIcon size={14} color={Colors.slate[400]} />
             </TouchableOpacity>
@@ -194,17 +264,91 @@ export default function HomeScreen() {
         {/* Feed Content */}
         <ScrollView
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.feedContent}
+          contentContainerStyle={[
+            styles.feedContent,
+            { paddingBottom: 20 + insets.bottom },
+          ]}
         >
-          {/* Hero Ad Carousel */}
-          <HeroAdCarousel />
+          <Text style={[styles.sectionHeader, styles.dealsHeading]}>
+            Deals &amp; Promos
+          </Text>
+          <HeroAdCarousel
+            merchants={merchants}
+            onPressViewMore={(merchant) => {
+              if (merchant) setSelectedMerchant(merchant);
+            }}
+          />
+
+          {(businessPostsLoading ||
+            businessPosts.length > 0 ||
+            businessPostsError) && (
+            <View style={styles.businessPostsSection}>
+              <View style={styles.businessPostsHeader}>
+                <View style={styles.businessPostsHeading}>
+                  <Text style={styles.businessPostsTitle}>
+                    Latest from businesses
+                  </Text>
+                  <Text style={styles.businessPostsSubtitle}>
+                    Recent updates from local businesses
+                  </Text>
+                </View>
+              </View>
+              {businessPostsLoading ? (
+                <ActivityIndicator color={Colors.teal[700]} />
+              ) : businessPostsError && businessPosts.length === 0 ? (
+                <Text style={styles.businessPostsEmpty}>
+                  Business posts could not be loaded. Please try again later.
+                </Text>
+              ) : (
+                <>
+                  {businessPostsError && (
+                    <Text style={styles.businessPostsError}>
+                      Some business posts could not be loaded.
+                    </Text>
+                  )}
+                  {businessPosts
+                    .slice(0, showMoreBusinessPosts ? 15 : 5)
+                    .map(({ merchant, post }) => (
+                      <PostCard
+                        key={`${merchant.id}-${post.id}`}
+                        post={post}
+                        businessName={merchant.name}
+                        businessAvatarUrl={merchant.img}
+                        style={styles.businessPostCard}
+                        onPressBusiness={() => setSelectedMerchant(merchant)}
+                      />
+                    ))}
+                  {businessPosts.length > 5 && (
+                    <TouchableOpacity
+                      style={styles.seeMorePostsButton}
+                      onPress={() =>
+                        setShowMoreBusinessPosts((expanded) => !expanded)
+                      }
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.seeMorePostsText}>
+                        {showMoreBusinessPosts ? "See less" : "See more"}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </>
+              )}
+            </View>
+          )}
 
           {/* For You Section */}
           <View style={styles.forYouSection}>
             <Text style={styles.sectionHeader}>For You</Text>
 
-            {(() => { console.log("[HomeScreen] RENDERING merchants:", filteredMerchants.map((m) => m.name)); return null; })()}
-            {filteredMerchants.length === 0 ? (
+            {loading ? (
+              <ActivityIndicator color={Colors.teal[700]} />
+            ) : merchantsError ? (
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyText}>
+                  Businesses could not be loaded. Please try again later.
+                </Text>
+              </View>
+            ) : filteredMerchants.length === 0 ? (
               <View style={styles.emptyContainer}>
                 <Text style={styles.emptyText}>
                   {!userLocation
@@ -215,30 +359,7 @@ export default function HomeScreen() {
                 </Text>
               </View>
             ) : (
-              <>
-                {/* Injected first sponsored card */}
-                {sponsoredCards.length > 0 && (
-                  <View style={styles.feedItem}>
-                    <SponsoredCard
-                      card={sponsoredCards[0]}
-                      onPress={() =>
-                        setSelectedMerchant({
-                          ...sponsoredCards[0],
-                          lat: (sponsoredCards[0] as any).latitude ?? 37.7749,
-                          lng: (sponsoredCards[0] as any).longitude ?? -122.4194,
-                          latitude: (sponsoredCards[0] as any).latitude,
-                          longitude: (sponsoredCards[0] as any).longitude,
-                          type: "sponsored" as const,
-                          hours: (sponsoredCards[0] as any).hours || "",
-                          address: (sponsoredCards[0] as any).address || "",
-                        } as unknown as MapMerchant)
-                      }
-                    />
-                  </View>
-                )}
-
-                {/* Merchant cards */}
-                {filteredMerchants.map((m, idx) => (
+                filteredMerchants.map((m) => (
                   <View key={m.id} style={styles.feedItem}>
                     <TouchableOpacity
                       style={styles.merchantCard}
@@ -291,30 +412,8 @@ export default function HomeScreen() {
                       </View>
                     </TouchableOpacity>
 
-                    {/* Injected second sponsored card after index 1 */}
-                    {idx === 1 && sponsoredCards.length > 1 && (
-                      <View style={styles.injectedSponsoredWrapper}>
-                        <SponsoredCard
-                          card={sponsoredCards[1]}
-                          onPress={() =>
-                            setSelectedMerchant({
-                              ...sponsoredCards[1],
-                              lat: (sponsoredCards[1] as any).latitude ?? 37.7749,
-                              lng: (sponsoredCards[1] as any).longitude ?? -122.4194,
-                              latitude: (sponsoredCards[1] as any).latitude,
-                              longitude: (sponsoredCards[1] as any).longitude,
-                              type: "sponsored" as const,
-                              hours: (sponsoredCards[1] as any).hours || "",
-                              address: (sponsoredCards[1] as any).address || "",
-                            } as unknown as MapMerchant)
-                          }
-                        />
-                      </View>
-                    )}
                   </View>
-                ))}
-              </>
-            )}
+                )))}
           </View>
 
           <View style={{ height: 24 }} />
@@ -356,7 +455,12 @@ export default function HomeScreen() {
                 onChange={setPickerState}
                 mapHeight={280}
               />
-              <View style={styles.pickerModalFooter}>
+              <View
+                style={[
+                  styles.pickerModalFooter,
+                  { paddingBottom: 16 + insets.bottom },
+                ]}
+              >
                 <TouchableOpacity
                   style={styles.pickerConfirmButton}
                   onPress={handleConfirmLocation}
@@ -409,11 +513,15 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
+    flex: 1,
+    minWidth: 0,
   },
   locationText: {
-    fontSize: 14,
-    fontWeight: "700",
+    fontSize: 12,
+    fontWeight: "600",
     color: Colors.slate[900],
+    flex: 1,
+    minWidth: 0,
   },
   avatarCircle: {
     width: 32,
@@ -466,9 +574,64 @@ const styles = StyleSheet.create({
   feedContent: {
     paddingBottom: 20,
   },
+  businessPostsSection: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    gap: 12,
+  },
+  businessPostsHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 4,
+  },
+  businessPostsHeading: {
+    flex: 1,
+    marginRight: 12,
+  },
+  businessPostsTitle: {
+    color: Colors.slate[900],
+    fontSize: 18,
+    fontWeight: "700",
+  },
+  businessPostsSubtitle: {
+    color: Colors.slate[500],
+    fontSize: 12,
+    marginTop: 3,
+  },
+  seeMorePostsButton: {
+    alignSelf: "center",
+    paddingHorizontal: 18,
+    paddingVertical: 9,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.teal[50],
+  },
+  seeMorePostsText: {
+    color: Colors.teal[700],
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  businessPostsEmpty: {
+    color: Colors.slate[500],
+    fontSize: 13,
+    textAlign: "center",
+    paddingVertical: 32,
+  },
+  businessPostsError: {
+    color: Colors.rose[600],
+    fontSize: 12,
+  },
+  businessPostCard: {
+    marginBottom: 4,
+  },
   forYouSection: {
     paddingHorizontal: 16,
     marginTop: 20,
+  },
+  dealsHeading: {
+    marginHorizontal: 16,
+    marginTop: 16,
+    marginBottom: -4,
   },
   sectionHeader: {
     fontSize: 17,
@@ -478,9 +641,6 @@ const styles = StyleSheet.create({
   },
   feedItem: {
     marginBottom: 12,
-  },
-  injectedSponsoredWrapper: {
-    marginTop: 12,
   },
   merchantCard: {
     backgroundColor: Colors.white,

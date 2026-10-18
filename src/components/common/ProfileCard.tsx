@@ -118,7 +118,13 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
         disabled={uploadingAvatar || (isBusinessProfile && !businessId)}
         activeOpacity={0.8}
       >
-        {isBusinessProfile ? normalizedBusinessPhotoUrl ? (
+        {isBusinessProfile && user.avatarUrl ? (
+          <Image
+            source={{ uri: user.avatarUrl }}
+            style={styles.avatarImage}
+            resizeMode="cover"
+          />
+        ) : isBusinessProfile ? normalizedBusinessPhotoUrl ? (
           <Image
             source={{ uri: normalizedBusinessPhotoUrl }}
             style={styles.avatarImage}

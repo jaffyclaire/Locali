@@ -16,6 +16,7 @@ import { useAuthRole } from "../../src/context/AuthRoleContext";
 import { Colors, Radius, Shadows } from "../../src/constants/theme";
 import { BackArrowIcon, EyeIcon, EyeOffIcon } from "../../src/components/icons/AppIcons";
 import { getReadableAuthErrorMessage } from "../../src/lib/authErrors";
+import { isValidEmail } from "../../src/lib/authValidation";
 
 export default function SignUpScreen() {
   const router = useRouter();
@@ -24,7 +25,9 @@ export default function SignUpScreen() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -33,12 +36,20 @@ export default function SignUpScreen() {
       setErrorMessage("Please enter your full name.");
       return;
     }
-    if (!email.trim() || !password) {
-      setErrorMessage("Please enter both your email and a password.");
+    if (!email.trim() || !password || !confirmPassword) {
+      setErrorMessage("Please complete all required fields.");
+      return;
+    }
+    if (!isValidEmail(email)) {
+      setErrorMessage("Please enter a valid email address.");
       return;
     }
     if (password.length < 6) {
       setErrorMessage("Password must be at least 6 characters.");
+      return;
+    }
+    if (password !== confirmPassword) {
+      setErrorMessage("Passwords do not match.");
       return;
     }
 
@@ -113,6 +124,33 @@ export default function SignUpScreen() {
               </View>
             )}
 
+            <View style={styles.roleContainer}>
+              <Text style={styles.inputLabel}>I am a…</Text>
+              <View style={styles.segmentedControl}>
+                {(["Shopper", "Merchant Owner"] as const).map((r) => (
+                  <TouchableOpacity
+                    key={r}
+                    onPress={() => !loading && setRoleSelection(r)}
+                    style={[
+                      styles.segmentButton,
+                      roleSelection === r && styles.segmentButtonActive,
+                    ]}
+                    activeOpacity={0.8}
+                    disabled={loading}
+                  >
+                    <Text
+                      style={[
+                        styles.segmentButtonText,
+                        roleSelection === r && styles.segmentButtonTextActive,
+                      ]}
+                    >
+                      {r}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Full Name</Text>
               <TextInput
@@ -174,31 +212,42 @@ export default function SignUpScreen() {
               </View>
             </View>
 
-            {/* Role picker */}
-            <View style={styles.roleContainer}>
-              <Text style={styles.inputLabel}>I am a…</Text>
-              <View style={styles.segmentedControl}>
-                {(["Shopper", "Merchant Owner"] as const).map((r) => (
-                  <TouchableOpacity
-                    key={r}
-                    onPress={() => !loading && setRoleSelection(r)}
-                    style={[
-                      styles.segmentButton,
-                      roleSelection === r && styles.segmentButtonActive,
-                    ]}
-                    activeOpacity={0.8}
-                    disabled={loading}
-                  >
-                    <Text
-                      style={[
-                        styles.segmentButtonText,
-                        roleSelection === r && styles.segmentButtonTextActive,
-                      ]}
-                    >
-                      {r}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Confirm Password</Text>
+              <View style={styles.passwordContainer}>
+                <TextInput
+                  style={styles.passwordInput}
+                  value={confirmPassword}
+                  onChangeText={(text) => {
+                    setConfirmPassword(text);
+                    if (errorMessage) setErrorMessage("");
+                  }}
+                  placeholder="••••••••"
+                  placeholderTextColor={Colors.slate[400]}
+                  secureTextEntry={!showConfirmPassword}
+                  autoCapitalize="none"
+                  editable={!loading}
+                  returnKeyType="done"
+                  onSubmitEditing={handleCreate}
+                />
+                <TouchableOpacity
+                  style={styles.eyeButton}
+                  onPress={() =>
+                    setShowConfirmPassword((previous) => !previous)
+                  }
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  accessibilityLabel={
+                    showConfirmPassword
+                      ? "Hide confirmation password"
+                      : "Show confirmation password"
+                  }
+                >
+                  {showConfirmPassword ? (
+                    <EyeOffIcon size={20} color={Colors.slate[400]} />
+                  ) : (
+                    <EyeIcon size={20} color={Colors.slate[400]} />
+                  )}
+                </TouchableOpacity>
               </View>
             </View>
 

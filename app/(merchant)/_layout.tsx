@@ -1,6 +1,7 @@
 import React from "react";
 import { Tabs, Redirect } from "expo-router";
-import { Platform, View, ActivityIndicator } from "react-native";
+import { View, ActivityIndicator } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Colors } from "../../src/constants/theme";
 import { useAuthRole } from "../../src/context/AuthRoleContext";
 import {
@@ -12,6 +13,7 @@ import {
 
 export default function MerchantTabsLayout() {
   const { role, isAuthenticated, isLoading } = useAuthRole();
+  const insets = useSafeAreaInsets();
 
   if (isLoading) {
     return (
@@ -45,8 +47,8 @@ export default function MerchantTabsLayout() {
         tabBarStyle: {
           backgroundColor: Colors.white,
           borderTopColor: Colors.slate[100],
-          height: Platform.OS === "ios" ? 84 : 64,
-          paddingBottom: Platform.OS === "ios" ? 28 : 10,
+          height: 56 + Math.max(insets.bottom, 10),
+          paddingBottom: Math.max(insets.bottom, 10),
           paddingTop: 8,
         },
         tabBarLabelStyle: {
@@ -116,4 +118,3 @@ export default function MerchantTabsLayout() {
     </Tabs>
   );
 }
-

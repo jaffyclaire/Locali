@@ -11,50 +11,85 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuthRole } from "../../src/context/AuthRoleContext";
 import { Colors, Radius, Shadows } from "../../src/constants/theme";
 import { FlagReportItem } from "../../src/types";
-import { FireIcon, MegaphoneIcon, CheckIcon } from "../../src/components/icons/AppIcons";
+import {
+  BookmarkIcon,
+  FireIcon,
+  MegaphoneIcon,
+  CheckIcon,
+  StarIcon,
+} from "../../src/components/icons/AppIcons";
 import {
   fetchMerchantByOwner,
-  fetchMerchants,
   getLatestStreak,
   fetchMerchantFlagReports,
   resolveMerchantFlagReport,
 } from "../../src/services/firestoreService";
+import {
+  fetchMerchantCustomerActivity,
+  MerchantCustomerActivity,
+} from "../../src/services/merchantCommunityService";
+
+const activityTimeAgo = (value: unknown): string => {
+  let date: Date | null = null;
+  if (value instanceof Date) {
+    date = value;
+  } else if (value && typeof value === "object" && "toDate" in value) {
+    const toDate = value.toDate;
+    if (typeof toDate === "function") {
+      const result: unknown = toDate.call(value);
+      if (result instanceof Date) date = result;
+    }
+  } else if (typeof value === "string" || typeof value === "number") {
+    const result = new Date(value);
+    if (!Number.isNaN(result.getTime())) date = result;
+  }
+  if (!date) return "Recently";
+  const minutes = Math.max(0, Math.floor((Date.now() - date.getTime()) / 60000));
+  if (minutes < 1) return "Just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return days < 30 ? `${days}d ago` : date.toLocaleDateString();
+};
 
 export default function MerchantActivityScreen() {
   const { user } = useAuthRole();
   const [reports, setReports] = useState<FlagReportItem[]>([]);
+  const [customerActivities, setCustomerActivities] = useState<
+    MerchantCustomerActivity[]
+  >([]);
   const [streakCount, setStreakCount] = useState<number>(1);
   const [loading, setLoading] = useState<boolean>(true);
-  const [merchantId, setMerchantId] = useState<string>("");
+  const [activityError, setActivityError] = useState(false);
 
   const loadActivityData = useCallback(async () => {
     try {
-      setLoading(true);
-      let mId = "";
-      if (user?.uid) {
-        const m = await fetchMerchantByOwner(user.uid);
-        if (m) mId = String(m.id);
-      }
-      if (!mId) {
-        const all = await fetchMerchants({ limitCount: 1 });
-        if (all.length > 0) mId = String(all[0].id);
+      const merchant = user?.uid ? await fetchMerchantByOwner(user.uid) : null;
+      setActivityError(false);
+      if (!merchant) {
+        setReports([]);
+        setCustomerActivities([]);
+        setStreakCount(1);
+        return;
       }
 
-      if (mId) {
-        setMerchantId(mId);
-        const [streak, flagList] = await Promise.all([
-          getLatestStreak(mId),
-          fetchMerchantFlagReports(mId),
-        ]);
-        setStreakCount(streak || 1);
-        setReports(flagList);
-      }
+      const mId = String(merchant.id);
+      const [streak, flagList, customerActivity] = await Promise.all([
+        getLatestStreak(mId),
+        fetchMerchantFlagReports(mId),
+        fetchMerchantCustomerActivity(mId),
+      ]);
+      setStreakCount(streak || 1);
+      setReports(flagList);
+      setCustomerActivities(customerActivity);
     } catch (err) {
+      setActivityError(true);
       console.warn("Error loading activity data:", err);
     } finally {
       setLoading(false);
     }
-  }, [user?.uid]);
+  }, [user]);
 
   useEffect(() => {
     loadActivityData();
@@ -121,6 +156,48 @@ export default function MerchantActivityScreen() {
                 Your sponsored alert reached 247 nearby users this morning.
               </Text>
             </View>
+          </View>
+
+          <View style={styles.customerActivitySection}>
+            <Text style={styles.sectionTitle}>Shopper activity</Text>
+            {loading ? (
+              <ActivityIndicator color={Colors.teal[700]} />
+            ) : activityError ? (
+              <Text style={styles.customerActivityEmpty}>
+                Shopper activity could not be loaded.
+              </Text>
+            ) : customerActivities.length === 0 ? (
+              <Text style={styles.customerActivityEmpty}>
+                No shoppers have saved or reviewed your shop yet.
+              </Text>
+            ) : (
+              customerActivities.map((activity) => (
+                <View key={activity.id} style={styles.customerActivityCard}>
+                  <View style={styles.customerActivityIcon}>
+                    {activity.type === "saved" ? (
+                      <BookmarkIcon size={17} color={Colors.teal[700]} />
+                    ) : (
+                      <StarIcon size={17} color={Colors.amber[500]} />
+                    )}
+                  </View>
+                  <View style={styles.customerActivityContent}>
+                    <Text style={styles.customerActivityTitle}>
+                      {activity.type === "saved"
+                        ? `${activity.shopperName} saved your shop`
+                        : `${activity.shopperName} left a ${activity.rating || 0}-star review`}
+                    </Text>
+                    {activity.type === "review" && activity.comment ? (
+                      <Text style={styles.customerActivityComment}>
+                        {activity.comment}
+                      </Text>
+                    ) : null}
+                    <Text style={styles.customerActivityTime}>
+                      {activityTimeAgo(activity.createdAt)}
+                    </Text>
+                  </View>
+                </View>
+              ))
+            )}
           </View>
 
           {/* Flag Reports */}
@@ -299,6 +376,58 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: Colors.slate[800],
   },
+  customerActivitySection: {
+    gap: 10,
+    marginTop: 4,
+  },
+  customerActivityEmpty: {
+    color: Colors.slate[500],
+    fontSize: 12,
+    backgroundColor: Colors.white,
+    borderRadius: Radius.xl,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: Colors.slate[100],
+  },
+  customerActivityCard: {
+    backgroundColor: Colors.white,
+    borderRadius: Radius["2xl"],
+    borderWidth: 1,
+    borderColor: Colors.slate[100],
+    padding: 14,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    ...Shadows.sm,
+  },
+  customerActivityIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.teal[50],
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  customerActivityContent: {
+    flex: 1,
+  },
+  customerActivityTitle: {
+    color: Colors.slate[800],
+    fontSize: 13,
+    fontWeight: "600",
+    lineHeight: 18,
+  },
+  customerActivityComment: {
+    color: Colors.slate[600],
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 5,
+  },
+  customerActivityTime: {
+    color: Colors.slate[400],
+    fontSize: 10,
+    marginTop: 5,
+  },
   pendingBadge: {
     backgroundColor: Colors.rose[50],
     borderWidth: 1,
@@ -422,4 +551,3 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 });
-
