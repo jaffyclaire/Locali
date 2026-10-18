@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "569916464684",
+    "project_id": "locali-dca58",
+    "storage_bucket": "locali-dca58.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:569916464684:android:d951fb450be91cadae3b89",
+        "android_client_info": {
+          "package_name": "Local.i5687"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "569916464684-3c0rd79dmvses2raui1u7c1nt45g4p2c.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "Local.i5687",
+            "certificate_hash": "49c52e4111beac2038a160fba6dcd82f4bf77d67"
+          }
+        },
+        {
+          "client_id": "569916464684-2tbi06bbbmt7nupkvdau8au3vnfbufep.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC86Eeugd3KXSVYKG6utyEW-ILsBiNRSDY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "569916464684-2tbi06bbbmt7nupkvdau8au3vnfbufep.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
