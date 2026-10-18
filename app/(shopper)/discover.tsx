@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   ScrollView,
   FlatList,
-  Image,
   StyleSheet,
   Dimensions,
   Platform,
@@ -29,6 +28,7 @@ import {
   RecenterIcon,
 } from "../../src/components/icons/AppIcons";
 import { CustomMarker } from "../../src/components/map/CustomMarker";
+import { TileMapPreview } from "../../src/components/TileMapPreview";
 import { MerchantSheet } from "../../src/components/common/MerchantSheet";
 import { MerchantPhoto } from "../../src/components/common/MerchantPhoto";
 import { FilterSheet } from "../../src/components/common/FilterSheet";
@@ -37,7 +37,6 @@ import { openDirections } from "../../src/services/directionsService";
 import { useAuthRole } from "../../src/context/AuthRoleContext";
 
 const { width } = Dimensions.get("window");
-const MAPTILER_KEY = process.env.EXPO_PUBLIC_MAPTILER_KEY;
 const DEFAULT_CENTER = {
   latitude: 37.7752,
   longitude: -122.4196,
@@ -68,9 +67,6 @@ export default function DiscoverScreen() {
   const [filterOpenNow, setFilterOpenNow] = useState(false);
   const [filterVerified, setFilterVerified] = useState(false);
   const [merchants, setMerchants] = useState<MapMerchant[]>([]);
-  const [failedStaticMapKeys, setFailedStaticMapKeys] = useState<Set<string>>(
-    () => new Set()
-  );
   const [categories, setCategories] = useState<string[]>(["All"]);
   const [loading, setLoading] = useState(true);
 
@@ -419,44 +415,13 @@ export default function DiscoverScreen() {
 
                   {/* Inline Static Map Snapshot */}
                   <View style={styles.inlineMapContainer}>
-                    {(() => {
-                      const hasCoordinates =
-                        Number.isFinite(m.lat) && Number.isFinite(m.lng);
-                      const staticMapKey = `${m.id}:${m.lat}:${m.lng}`;
-                      const showStaticMap =
-                        MAPTILER_KEY !== undefined &&
-                        hasCoordinates &&
-                        !failedStaticMapKeys.has(staticMapKey);
-
-                      return showStaticMap ? (
-                        <>
-                          <Image
-                            source={{
-                              uri: `https://api.maptiler.com/maps/streets-v2/static/${m.lng},${m.lat},15/600x300.png?key=${encodeURIComponent(MAPTILER_KEY)}`,
-                            }}
-                            style={styles.inlineMapImage}
-                            resizeMode="cover"
-                            onError={() => {
-                              setFailedStaticMapKeys((previous) => {
-                                const next = new Set(previous);
-                                next.add(staticMapKey);
-                                return next;
-                              });
-                            }}
-                          />
-                          <View
-                            pointerEvents="none"
-                            style={styles.inlineMapPin}
-                          >
-                            <CustomMarker type={m.type} />
-                          </View>
-                        </>
-                      ) : (
-                        <View style={styles.inlineMapPlaceholder}>
-                          <MapViewIcon size={26} color={Colors.slate[400]} />
-                        </View>
-                      );
-                    })()}
+                    <TileMapPreview
+                      latitude={m.lat}
+                      longitude={m.lng}
+                      width={width - 66}
+                      height={118}
+                      pinType={m.type}
+                    />
                     <TouchableOpacity
                       style={[
                         styles.directionsOverlayButton,
@@ -890,22 +855,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.slate[100],
     position: "relative",
-  },
-  inlineMapPlaceholder: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: Colors.slate[100],
-  },
-  inlineMapImage: {
-    ...StyleSheet.absoluteFill,
-    width: "100%",
-    height: "100%",
-  },
-  inlineMapPin: {
-    ...StyleSheet.absoluteFill,
-    alignItems: "center",
-    justifyContent: "center",
   },
   directionsOverlayButton: {
     position: "absolute",

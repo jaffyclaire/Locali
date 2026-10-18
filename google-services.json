@@ -41,6 +41,43 @@
           ]
         }
       }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:569916464684:android:d6e62f0da2687ca7ae3b89",
+        "android_client_info": {
+          "package_name": "com.locali.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "569916464684-174mhnt5e49tc48hp7l6dkrksqcke13g.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.locali.app",
+            "certificate_hash": "49c52e4111beac2038a160fba6dcd82f4bf77d67"
+          }
+        },
+        {
+          "client_id": "569916464684-2tbi06bbbmt7nupkvdau8au3vnfbufep.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC86Eeugd3KXSVYKG6utyEW-ILsBiNRSDY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "569916464684-2tbi06bbbmt7nupkvdau8au3vnfbufep.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
     }
   ],
   "configuration_version": "1"
