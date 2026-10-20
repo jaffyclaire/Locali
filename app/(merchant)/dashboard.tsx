@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -15,8 +15,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Colors, Radius, Shadows } from "../../src/constants/theme";
 import { useAuthRole } from "../../src/context/AuthRoleContext";
 import { PostCard } from "../../src/components/PostCard";
+import { ReviewCard } from "../../src/components/ReviewCard";
 import {
   CheckIcon,
+  StarIcon,
   LocationIcon,
   TagIcon,
   AlertTriangleIcon,
@@ -38,6 +40,12 @@ import {
   MerchantPost,
 } from "../../src/services/firestoreService";
 import { Merchant } from "../../src/types";
+import {
+  deleteReviewReply,
+  fetchMerchantReviews,
+  MerchantReviewWithProfile,
+  saveReviewReply,
+} from "../../src/services/merchantCommunityService";
 
 export default function MerchantDashboard() {
   const router = useRouter();
@@ -51,6 +59,7 @@ export default function MerchantDashboard() {
   });
   const [activities, setActivities] = useState<MerchantActivityItem[]>([]);
   const [posts, setPosts] = useState<MerchantPost[]>([]);
+  const [reviews, setReviews] = useState<MerchantReviewWithProfile[]>([]);
   const [checkedIn, setCheckedIn] = useState(false);
   const [streak, setStreak] = useState(0);
   const [isOpen, setIsOpen] = useState(true);
@@ -79,12 +88,19 @@ export default function MerchantDashboard() {
           Boolean(currentMerchant.isVerified && currentMerchant.verifiedTodayAt);
         setCheckedIn(isVerifiedToday);
 
-        const [metricsResult, activitiesResult, streakResult, postsResult] =
+        const [
+          metricsResult,
+          activitiesResult,
+          streakResult,
+          postsResult,
+          reviewsResult,
+        ] =
           await Promise.allSettled([
           fetchMerchantPerformanceMetrics(String(currentMerchant.id)),
           fetchMerchantRecentActivity(String(currentMerchant.id)),
           getLatestStreak(String(currentMerchant.id)),
           fetchMerchantPosts(String(currentMerchant.id)),
+          fetchMerchantReviews(String(currentMerchant.id)),
         ]);
 
         if (metricsResult.status === "fulfilled") setMetrics(metricsResult.value);
@@ -104,6 +120,13 @@ export default function MerchantDashboard() {
             postsResult.reason
           );
         }
+        if (reviewsResult.status === "fulfilled") setReviews(reviewsResult.value);
+        else {
+          console.warn(
+            "loadDashboardData review request failed:",
+            reviewsResult.reason
+          );
+        }
       }
     } catch (err) {
       console.warn("loadDashboardData error:", err);
@@ -112,10 +135,6 @@ export default function MerchantDashboard() {
       setRefreshing(false);
     }
   }, [user]);
-
-  useEffect(() => {
-    loadDashboardData();
-  }, [loadDashboardData]);
 
   useFocusEffect(
     useCallback(() => {
@@ -145,6 +164,42 @@ export default function MerchantDashboard() {
       setIsOpen(!nextState);
     }
   };
+
+  const handleSaveReviewReply = async (
+    reviewId: string,
+    reply: string
+  ): Promise<void> => {
+    if (!merchant) return;
+    await saveReviewReply(merchant.id, reviewId, reply);
+    setReviews((current) =>
+      current.map((review) =>
+        review.id === reviewId
+          ? { ...review, reply: reply.trim(), repliedAt: new Date() }
+          : review
+      )
+    );
+  };
+
+  const handleDeleteReviewReply = async (reviewId: string): Promise<void> => {
+    if (!merchant) return;
+    await deleteReviewReply(merchant.id, reviewId);
+    setReviews((current) =>
+      current.map((review) =>
+        review.id === reviewId
+          ? { ...review, reply: undefined, repliedAt: undefined }
+          : review
+      )
+    );
+  };
+
+  const ratedReviews = reviews.filter(
+    (review) => review.rating >= 1 && review.rating <= 5
+  );
+  const averageReviewRating =
+    ratedReviews.length > 0
+      ? ratedReviews.reduce((sum, review) => sum + review.rating, 0) /
+        ratedReviews.length
+      : 0;
 
   const getInitials = (name?: string) => {
     if (!name) return "BC";
@@ -252,7 +307,7 @@ export default function MerchantDashboard() {
                 <View style={styles.verificationHero}>
                   <Text style={styles.verificationEyebrow}>Daily Verification</Text>
                   <Text style={styles.verificationHeroTitle}>
-                    Confirm Today's Hours
+                    Confirm Today&apos;s Hours
                   </Text>
                   <Text style={styles.verificationHours}>
                     {merchant?.hours || "9:00 AM – 6:00 PM"}
@@ -397,6 +452,8 @@ export default function MerchantDashboard() {
                         <AlertTriangleIcon size={18} color={Colors.rose[500]} />
                       ) : a.icon === "saved" ? (
                         <TagIcon size={18} color={Colors.teal[600]} />
+                      ) : a.icon === "review" ? (
+                        <StarIcon size={18} color={Colors.amber[500]} />
                       ) : (
                         <CheckIcon size={18} color={Colors.emerald[600]} />
                       )}
@@ -421,6 +478,55 @@ export default function MerchantDashboard() {
                     </View>
                     <RightArrowIcon size={18} color={Colors.teal[700]} />
                   </TouchableOpacity>
+                )}
+              </View>
+
+              <View style={styles.reviewSection}>
+                <View style={styles.reviewSectionHeader}>
+                  <Text style={styles.sectionTitle}>Reviews</Text>
+                  {reviews.length > 0 && (
+                    <View style={styles.reviewSummaryRating}>
+                      <StarIcon size={16} color={Colors.amber[500]} />
+                      <Text style={styles.reviewSummaryValue}>
+                        {averageReviewRating.toFixed(1)}
+                      </Text>
+                      <Text style={styles.reviewSummaryCount}>
+                        ({reviews.length})
+                      </Text>
+                    </View>
+                  )}
+                </View>
+                {reviews.length === 0 ? (
+                  <View style={styles.reviewEmptyCard}>
+                    <Text style={styles.reviewEmptyText}>No reviews yet</Text>
+                  </View>
+                ) : (
+                  <>
+                    {reviews.slice(0, 3).map((review) => (
+                      <ReviewCard
+                        key={review.id}
+                        review={review}
+                        businessName={merchant.name}
+                        compact
+                        onSaveReply={(reply) =>
+                          handleSaveReviewReply(review.id, reply)
+                        }
+                        onDeleteReply={() =>
+                          handleDeleteReviewReply(review.id)
+                        }
+                      />
+                    ))}
+                    {reviews.length > 3 && (
+                      <TouchableOpacity
+                        style={styles.seeAllReviews}
+                        onPress={() => router.push("/(merchant)/reviews")}
+                        activeOpacity={0.75}
+                      >
+                        <Text style={styles.seeAllReviewsText}>See all reviews</Text>
+                        <RightArrowIcon size={18} color={Colors.teal[700]} />
+                      </TouchableOpacity>
+                    )}
+                  </>
                 )}
               </View>
 
@@ -856,6 +962,53 @@ const styles = StyleSheet.create({
   },
   activitySection: {
     gap: 10,
+  },
+  reviewSection: {
+    gap: 10,
+  },
+  reviewSectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  reviewSummaryRating: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  reviewSummaryValue: {
+    color: Colors.slate[800],
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  reviewSummaryCount: {
+    color: Colors.slate[500],
+    fontSize: 12,
+  },
+  reviewEmptyCard: {
+    backgroundColor: Colors.white,
+    borderRadius: Radius.xl,
+    borderWidth: 1,
+    borderColor: Colors.slate[100],
+    padding: 16,
+  },
+  reviewEmptyText: {
+    color: Colors.slate[500],
+    fontSize: 13,
+  },
+  seeAllReviews: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: Colors.white,
+    borderRadius: Radius.xl,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+  },
+  seeAllReviewsText: {
+    color: Colors.teal[700],
+    fontSize: 13,
+    fontWeight: "700",
   },
   activityItemCard: {
     backgroundColor: Colors.white,

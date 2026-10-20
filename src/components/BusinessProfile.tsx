@@ -18,6 +18,8 @@ import {
 } from "./icons/AppIcons";
 import { Merchant, MerchantPost } from "../types";
 import { PostCard } from "./PostCard";
+import { MerchantReviewWithProfile } from "../services/merchantCommunityService";
+import { ReviewCard } from "./ReviewCard";
 
 interface BusinessProfileProps {
   merchant: Merchant | null;
@@ -28,6 +30,8 @@ interface BusinessProfileProps {
   saving?: boolean;
   onToggleSave?: () => void;
   onGetDirections?: () => void;
+  reviews?: MerchantReviewWithProfile[];
+  reviewsError?: boolean;
   style?: ViewStyle;
 }
 
@@ -50,12 +54,19 @@ export const BusinessProfile: React.FC<BusinessProfileProps> = ({
   saving = false,
   onToggleSave,
   onGetDirections,
+  reviews,
+  reviewsError = false,
   style,
 }) => {
   const coverImage = merchant?.coverPhotoUrl || merchant?.img;
   const hasHours = WEEK_DAYS.some(([key]) => merchant?.weeklyHours?.[key]);
   const showPosts = postsLoading || postsError || posts.length > 0;
   const hasShopperActions = !!onToggleSave && !!onGetDirections;
+  const ratedReviews = reviews?.filter((review) => review.rating >= 1 && review.rating <= 5) || [];
+  const displayedRating =
+    ratedReviews.length > 0
+      ? ratedReviews.reduce((sum, review) => sum + review.rating, 0) / ratedReviews.length
+      : merchant?.rating ?? 0;
   const saveButton = onToggleSave ? (
     <TouchableOpacity
       style={styles.bookmarkButton}
@@ -104,7 +115,7 @@ export const BusinessProfile: React.FC<BusinessProfileProps> = ({
           <View style={styles.ratingRow}>
             <StarIcon size={14} color={Colors.amber[500]} />
             <Text style={styles.ratingText}>
-              {merchant?.rating ?? 0} ({merchant?.reviews ?? 0})
+              {displayedRating.toFixed(1)} ({reviews ? reviews.length : merchant?.reviews ?? 0})
             </Text>
           </View>
           {merchant && (
@@ -186,6 +197,25 @@ export const BusinessProfile: React.FC<BusinessProfileProps> = ({
           </View>
         )}
       </View>
+
+      {reviews !== undefined && (
+        <View style={styles.reviewsSection}>
+          <Text style={styles.postsTitle}>Reviews</Text>
+          {reviewsError ? (
+            <Text style={styles.postsEmpty}>Reviews could not be loaded. Please try again later.</Text>
+          ) : reviews.length === 0 ? (
+            <Text style={styles.postsEmpty}>No reviews yet.</Text>
+          ) : (
+            reviews.map((review) => (
+              <ReviewCard
+                key={review.id}
+                review={review}
+                businessName={merchant?.name || "Business"}
+              />
+            ))
+          )}
+        </View>
+      )}
 
       {showPosts && (
         <View style={styles.postsSection}>
@@ -352,6 +382,10 @@ const styles = StyleSheet.create({
     color: Colors.slate[400],
   },
   postsSection: {
+    marginTop: 20,
+    gap: 12,
+  },
+  reviewsSection: {
     marginTop: 20,
     gap: 12,
   },

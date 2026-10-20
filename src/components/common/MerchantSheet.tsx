@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Merchant } from "../../types";
 import MerchantMap from "../MerchantMap";
 import { MerchantPhoto } from "./MerchantPhoto";
+import { ReviewCard } from "../ReviewCard";
 // DAILY_HOURS import removed — using merchant.weeklyHours from Firestore instead
 import { Colors, Radius, Shadows } from "../../constants/theme";
 import {
@@ -24,6 +25,7 @@ import {
   CheckIcon,
   CloseIcon,
   RightArrowIcon,
+  ChevronRight,
   BookmarkIcon,
   CalendarIcon,
   LocationIcon,
@@ -42,6 +44,10 @@ import {
   createMerchantCustomerActivity,
   saveMerchantReviewProfile,
 } from "../../services/merchantCommunityService";
+import {
+  pickReviewImagesFromGallery,
+  uploadImageAsync,
+} from "../../services/storageService";
 
 interface MerchantSheetProps {
   merchant: Merchant | null;
@@ -51,29 +57,6 @@ interface MerchantSheetProps {
 }
 
 const { height } = Dimensions.get("window");
-
-const reviewDateLabel = (value: unknown): string => {
-  let date: Date | null = null;
-  if (value instanceof Date) {
-    date = value;
-  } else if (value && typeof value === "object" && "toDate" in value) {
-    const toDate = value.toDate;
-    if (typeof toDate === "function") {
-      const result: unknown = toDate.call(value);
-      if (result instanceof Date) date = result;
-    }
-  } else if (typeof value === "string" || typeof value === "number") {
-    const result = new Date(value);
-    if (!Number.isNaN(result.getTime())) date = result;
-  }
-  return date
-    ? date.toLocaleDateString(undefined, {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      })
-    : "Recently";
-};
 
 export const MerchantSheet: React.FC<MerchantSheetProps> = ({
   merchant,
@@ -89,6 +72,10 @@ export const MerchantSheet: React.FC<MerchantSheetProps> = ({
   const [reportOption, setReportOption] = useState("");
   const [userRating, setUserRating] = useState(0);
   const [reviewComment, setReviewComment] = useState("");
+  const [reviewImageUrls, setReviewImageUrls] = useState<string[]>([]);
+  const [reviewPhotoError, setReviewPhotoError] = useState("");
+  const [isUploadingReviewPhotos, setIsUploadingReviewPhotos] = useState(false);
+  const [reviewPhotoProgress, setReviewPhotoProgress] = useState(0);
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
   const [reviewSubmitted, setReviewSubmitted] = useState(false);
   const [hasExistingReview, setHasExistingReview] = useState(false);
@@ -153,10 +140,12 @@ export const MerchantSheet: React.FC<MerchantSheetProps> = ({
           if (rev) {
             setUserRating(rev.rating);
             setReviewComment(rev.comment);
+            setReviewImageUrls(rev.imageUrls);
             setHasExistingReview(true);
           } else {
             setUserRating(0);
             setReviewComment("");
+            setReviewImageUrls([]);
             setHasExistingReview(false);
           }
         })
@@ -208,8 +197,47 @@ export const MerchantSheet: React.FC<MerchantSheetProps> = ({
     await openDirections(lat, lng, merchant.name, merchant.id, user?.uid);
   };
 
-  const handleSubmitReview = async (ratingVal?: number) => {
-    const finalRating = ratingVal ?? userRating;
+  const handlePickReviewPhotos = async () => {
+    if (!merchant || !user?.uid || isUploadingReviewPhotos) return;
+    const remaining = 3 - reviewImageUrls.length;
+    if (remaining <= 0) {
+      setReviewPhotoError("You can add up to 3 photos to a review.");
+      return;
+    }
+
+    setReviewPhotoError("");
+    try {
+      const picked = await pickReviewImagesFromGallery(remaining);
+      if (picked.permissionDenied) {
+        setReviewPhotoError(
+          "Photo access was denied. Allow photo access in your device settings to add photos."
+        );
+        return;
+      }
+      if (!picked.uris.length) return;
+
+      setIsUploadingReviewPhotos(true);
+      setReviewPhotoProgress(0);
+      const uploadedUrls: string[] = [];
+      for (const [index, uri] of picked.uris.entries()) {
+        const url = await uploadImageAsync(
+          uri,
+          `merchants/${merchant.id}/reviews/${user.uid}/photo-${Date.now()}-${index}`
+        );
+        uploadedUrls.push(url);
+        setReviewPhotoProgress(Math.round(((index + 1) / picked.uris.length) * 100));
+      }
+      setReviewImageUrls((current) => [...current, ...uploadedUrls].slice(0, 3));
+    } catch (error) {
+      console.warn("[MerchantSheet] Review photo upload failed:", error);
+      setReviewPhotoError("A photo could not be uploaded. Please try again.");
+    } finally {
+      setIsUploadingReviewPhotos(false);
+    }
+  };
+
+  const handleSubmitReview = async () => {
+    const finalRating = userRating;
     if (!merchant || !user?.uid) {
       Alert.alert("Sign In Required", "Please sign in to rate this business.");
       return;
@@ -218,9 +246,21 @@ export const MerchantSheet: React.FC<MerchantSheetProps> = ({
       Alert.alert("Rating Required", "Please select a star rating from 1 to 5.");
       return;
     }
+    if (!reviewComment.trim()) {
+      Alert.alert("Comment Required", "Please add a comment before submitting your review.");
+      return;
+    }
+    if (isUploadingReviewPhotos) return;
+    const wasExistingReview = hasExistingReview;
     setIsSubmittingReview(true);
     try {
-      const ok = await submitMerchantReview(merchant.id, user.uid, finalRating, reviewComment);
+      const ok = await submitMerchantReview(
+        merchant.id,
+        user.uid,
+        finalRating,
+        reviewComment.trim(),
+        reviewImageUrls
+      );
       if (ok) {
         setUserRating(finalRating);
         setHasExistingReview(true);
@@ -239,18 +279,20 @@ export const MerchantSheet: React.FC<MerchantSheetProps> = ({
             profileError
           );
         }
-        try {
-          await createMerchantCustomerActivity(String(merchant.id), {
-            type: "review",
-            shopperName: user.fullName || user.name || "A shopper",
-            rating: finalRating,
-            comment: reviewComment.trim(),
-          });
-        } catch (activityError) {
-          console.warn(
-            "[MerchantSheet] Could not record review activity:",
-            activityError
-          );
+        if (!wasExistingReview) {
+          try {
+            await createMerchantCustomerActivity(String(merchant.id), {
+              type: "review",
+              shopperName: (user.fullName || user.name || "").trim() || "A shopper",
+              rating: finalRating,
+              comment: reviewComment.trim(),
+            });
+          } catch (activityError) {
+            console.warn(
+              "[MerchantSheet] Could not record review activity:",
+              activityError
+            );
+          }
         }
         await refreshReviews();
       } else {
@@ -473,8 +515,8 @@ export const MerchantSheet: React.FC<MerchantSheetProps> = ({
               </View>
               <Text style={styles.reviewPromptText}>
                 {hasExistingReview
-                  ? "Tap any star to change your rating"
-                  : "Tap a star to rate your experience"}
+                  ? "Update your rating and review"
+                  : "Choose a rating and share your experience"}
               </Text>
 
               {/* 5 Interactive Stars */}
@@ -482,10 +524,7 @@ export const MerchantSheet: React.FC<MerchantSheetProps> = ({
                 {[1, 2, 3, 4, 5].map((star) => (
                   <TouchableOpacity
                     key={star}
-                    onPress={() => {
-                      setUserRating(star);
-                      handleSubmitReview(star);
-                    }}
+                    onPress={() => setUserRating(star)}
                     activeOpacity={0.7}
                     style={styles.starTouchable}
                     hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
@@ -502,20 +541,63 @@ export const MerchantSheet: React.FC<MerchantSheetProps> = ({
                 <View style={styles.reviewInputContainer}>
                   <TextInput
                     style={styles.reviewCommentInput}
-                    placeholder="Write an optional review (how was service, food, atmosphere?)..."
+                    placeholder="Write your review (required)..."
                     placeholderTextColor={Colors.slate[400]}
                     value={reviewComment}
                     onChangeText={setReviewComment}
                     multiline
                     numberOfLines={2}
                   />
+                  <View style={styles.reviewPhotosPickerRow}>
+                    <TouchableOpacity
+                      style={styles.addReviewPhotosButton}
+                      onPress={() => void handlePickReviewPhotos()}
+                      disabled={isUploadingReviewPhotos || reviewImageUrls.length >= 3}
+                      activeOpacity={0.75}
+                    >
+                      <Text style={styles.addReviewPhotosText}>Add photos</Text>
+                    </TouchableOpacity>
+                    {isUploadingReviewPhotos && (
+                      <View style={styles.reviewUploadProgress}>
+                        <ActivityIndicator size="small" color={Colors.teal[700]} />
+                        <Text style={styles.reviewUploadProgressText}>
+                          Uploading {reviewPhotoProgress}%
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                  <View style={styles.reviewPhotoThumbnails}>
+                    {reviewImageUrls.map((imageUrl, index) => (
+                      <View key={`${imageUrl}-${index}`} style={styles.reviewPhotoThumbWrap}>
+                        <Image source={{ uri: imageUrl }} style={styles.reviewPhotoThumb} />
+                        <TouchableOpacity
+                          style={styles.removeReviewPhoto}
+                          onPress={() =>
+                            setReviewImageUrls((current) =>
+                              current.filter((_, photoIndex) => photoIndex !== index)
+                            )
+                          }
+                          disabled={isUploadingReviewPhotos}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Remove review photo ${index + 1}`}
+                        >
+                          <CloseIcon size={12} color={Colors.white} />
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+                  </View>
+                  {!!reviewPhotoError && (
+                    <Text style={styles.reviewPhotoError}>{reviewPhotoError}</Text>
+                  )}
                   <TouchableOpacity
                     style={[
                       styles.submitReviewButton,
-                      isSubmittingReview && { opacity: 0.6 },
+                      (isSubmittingReview || isUploadingReviewPhotos || !reviewComment.trim()) && {
+                        opacity: 0.6,
+                      },
                     ]}
-                    onPress={() => handleSubmitReview()}
-                    disabled={isSubmittingReview}
+                    onPress={() => void handleSubmitReview()}
+                    disabled={isSubmittingReview || isUploadingReviewPhotos || !reviewComment.trim()}
                     activeOpacity={0.8}
                   >
                     {isSubmittingReview ? (
@@ -543,11 +625,9 @@ export const MerchantSheet: React.FC<MerchantSheetProps> = ({
               <View style={styles.reviewsList}>
                 <View style={styles.reviewsListHeader}>
                   <Text style={styles.sectionTitle}>Reviews</Text>
-                  {reviews.length > 0 && (
-                    <Text style={styles.reviewsCount}>
-                      {reviews.length} {reviews.length === 1 ? "review" : "reviews"}
-                    </Text>
-                  )}
+                  <Text style={styles.reviewsCount}>
+                    {reviewAverage.toFixed(1)} ({reviews.length})
+                  </Text>
                 </View>
                 {reviewsLoading ? (
                   <ActivityIndicator color={Colors.teal[700]} />
@@ -560,60 +640,33 @@ export const MerchantSheet: React.FC<MerchantSheetProps> = ({
                     No reviews yet. Be the first to share your experience.
                   </Text>
                 ) : (
-                  reviews.map((review) => {
-                    const isOwnReview = review.userId === user?.uid;
-                    return (
-                      <View
-                        key={review.id}
-                        style={[
-                          styles.reviewItem,
-                          isOwnReview && styles.ownReviewItem,
-                        ]}
-                      >
-                        <View style={styles.reviewItemHeader}>
-                          {review.avatarUrl ? (
-                            <Image
-                              source={{ uri: review.avatarUrl }}
-                              style={styles.reviewerAvatar}
-                            />
-                          ) : (
-                            <View style={styles.reviewerInitials}>
-                              <Text style={styles.reviewerInitialsText}>
-                                {review.reviewerName.slice(0, 1).toUpperCase()}
-                              </Text>
-                            </View>
-                          )}
-                          <View style={styles.reviewerIdentity}>
-                            <Text style={styles.reviewerName}>
-                              {review.reviewerName}
-                              {isOwnReview ? " · You" : ""}
-                            </Text>
-                            <Text style={styles.reviewDate}>
-                              {reviewDateLabel(review.createdAt)}
-                            </Text>
-                          </View>
-                        </View>
-                        <View style={styles.reviewStars}>
-                          {[1, 2, 3, 4, 5].map((star) => (
-                            <StarIcon
-                              key={star}
-                              size={13}
-                              color={
-                                star <= review.rating
-                                  ? Colors.amber[500]
-                                  : Colors.slate[200]
-                              }
-                            />
-                          ))}
-                        </View>
-                        {review.comment ? (
-                          <Text style={styles.reviewComment}>
-                            {review.comment}
-                          </Text>
-                        ) : null}
-                      </View>
-                    );
-                  })
+                  reviews.slice(0, 2).map((review) => (
+                    <ReviewCard
+                      key={review.id}
+                      review={review}
+                      businessName={merchant.name}
+                    />
+                  ))
+                )}
+                {!reviewsLoading && !reviewsError && reviews.length > 2 && (
+                  <TouchableOpacity
+                    style={styles.seeAllReviewsButton}
+                    activeOpacity={0.75}
+                    accessibilityRole="button"
+                    accessibilityLabel={`See all ${reviews.length} reviews`}
+                    onPress={() => {
+                      onClose();
+                      router.push({
+                        pathname: "/reviews/[merchantId]",
+                        params: { merchantId: String(merchant.id) },
+                      });
+                    }}
+                  >
+                    <Text style={styles.seeAllReviewsText}>
+                      See all reviews ({reviews.length})
+                    </Text>
+                    <ChevronRight size={18} color={Colors.teal[700]} />
+                  </TouchableOpacity>
                 )}
               </View>
             </View>
@@ -671,7 +724,7 @@ export const MerchantSheet: React.FC<MerchantSheetProps> = ({
               </TouchableOpacity>
             ) : (
               <View style={styles.reportForm}>
-                <Text style={styles.reportHeader}>What's wrong?</Text>
+                <Text style={styles.reportHeader}>What&apos;s wrong?</Text>
                 {["Closed permanently", "Wrong hours", "Moved address"].map((opt) => (
                   <TouchableOpacity
                     key={opt}
@@ -1136,6 +1189,60 @@ const styles = StyleSheet.create({
     minHeight: 60,
     textAlignVertical: "top",
   },
+  reviewPhotosPickerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    minHeight: 38,
+  },
+  addReviewPhotosButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+  },
+  addReviewPhotosText: {
+    color: Colors.teal[700],
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  reviewUploadProgress: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+  },
+  reviewUploadProgressText: {
+    color: Colors.slate[600],
+    fontSize: 11,
+  },
+  reviewPhotoThumbnails: {
+    flexDirection: "row",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+  reviewPhotoThumbWrap: {
+    position: "relative",
+  },
+  reviewPhotoThumb: {
+    width: 64,
+    height: 64,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.slate[100],
+  },
+  removeReviewPhoto: {
+    position: "absolute",
+    top: -5,
+    right: -5,
+    width: 22,
+    height: 22,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.slate[700],
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  reviewPhotoError: {
+    color: Colors.rose[700],
+    fontSize: 11,
+    lineHeight: 16,
+  },
   submitReviewButton: {
     backgroundColor: Colors.teal[700],
     paddingVertical: 10,
@@ -1177,69 +1284,28 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   reviewsCount: {
-    color: Colors.slate[400],
-    fontSize: 11,
-  },
-  reviewsEmpty: {
-    color: Colors.slate[500],
+    color: Colors.slate[600],
     fontSize: 12,
-    lineHeight: 17,
+    fontWeight: "600",
   },
-  reviewItem: {
-    borderWidth: 1,
-    borderColor: Colors.slate[100],
-    borderRadius: Radius.lg,
-    padding: 12,
+  seeAllReviewsButton: {
+    minHeight: 48,
     backgroundColor: Colors.white,
-    gap: 7,
-  },
-  ownReviewItem: {
-    borderColor: Colors.teal[200],
-    backgroundColor: Colors.teal[50],
-  },
-  reviewItemHeader: {
+    borderWidth: 1,
+    borderColor: Colors.teal[100],
+    borderRadius: Radius.lg,
+    paddingHorizontal: 14,
     flexDirection: "row",
     alignItems: "center",
-    gap: 9,
+    justifyContent: "space-between",
   },
-  reviewerAvatar: {
-    width: 34,
-    height: 34,
-    borderRadius: Radius.full,
-    backgroundColor: Colors.slate[100],
-  },
-  reviewerInitials: {
-    width: 34,
-    height: 34,
-    borderRadius: Radius.full,
-    backgroundColor: Colors.teal[100],
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  reviewerInitialsText: {
-    color: Colors.teal[800],
+  seeAllReviewsText: {
+    color: Colors.teal[700],
     fontSize: 13,
     fontWeight: "700",
   },
-  reviewerIdentity: {
-    flex: 1,
-  },
-  reviewerName: {
-    color: Colors.slate[800],
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  reviewDate: {
-    color: Colors.slate[400],
-    fontSize: 10,
-    marginTop: 2,
-  },
-  reviewStars: {
-    flexDirection: "row",
-    gap: 2,
-  },
-  reviewComment: {
-    color: Colors.slate[700],
+  reviewsEmpty: {
+    color: Colors.slate[500],
     fontSize: 12,
     lineHeight: 17,
   },

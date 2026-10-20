@@ -1,6 +1,6 @@
 import React from "react";
-import { Tabs, Redirect } from "expo-router";
-import { View, ActivityIndicator } from "react-native";
+import { Tabs, Redirect, usePathname } from "expo-router";
+import { View, ActivityIndicator, Text } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Colors } from "../../src/constants/theme";
 import { useAuthRole } from "../../src/context/AuthRoleContext";
@@ -14,6 +14,8 @@ import {
 export default function MerchantTabsLayout() {
   const { role, isAuthenticated, isLoading } = useAuthRole();
   const insets = useSafeAreaInsets();
+  const pathname = usePathname();
+  const isReviewsRoute = pathname.endsWith("/reviews");
 
   if (isLoading) {
     return (
@@ -61,11 +63,25 @@ export default function MerchantTabsLayout() {
         name="dashboard"
         options={{
           title: "Dashboard",
+          tabBarLabel: ({ focused }) => (
+            <Text
+              style={{
+                color:
+                  focused || isReviewsRoute
+                    ? Colors.teal[700]
+                    : Colors.slate[400],
+                fontSize: 11,
+                fontWeight: "600",
+              }}
+            >
+              Dashboard
+            </Text>
+          ),
           tabBarIcon: ({ focused }) => (
             <GridIcon
               size={22}
-              active={focused}
-              color={focused ? Colors.teal[700] : Colors.slate[400]}
+              active={focused || isReviewsRoute}
+              color={focused || isReviewsRoute ? Colors.teal[700] : Colors.slate[400]}
             />
           ),
         }}
@@ -111,6 +127,12 @@ export default function MerchantTabsLayout() {
       />
       <Tabs.Screen
         name="create-post"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="reviews"
         options={{
           href: null,
         }}

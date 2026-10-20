@@ -890,7 +890,8 @@ export const fetchMerchantRecentActivity = async (
   try {
     const activities: MerchantActivityItem[] = [];
 
-    const [tapsSnap, flagsSnap, customerActivitySnap] = await Promise.all([
+    const [tapsSnap, flagsSnap, customerActivitySnap, reviewsSnap] =
+      await Promise.all([
       getDocs(
         query(
           collection(db, "directionTaps"),
@@ -904,6 +905,7 @@ export const fetchMerchantRecentActivity = async (
         )
       ),
       getDocs(collection(db, "merchants", String(merchantId), "activity")),
+      getDocs(collection(db, "merchants", String(merchantId), "reviews")),
     ]);
     tapsSnap.docs.forEach((d) => {
       const data = d.data();
@@ -944,19 +946,68 @@ export const fetchMerchantRecentActivity = async (
           timestamp: ms,
         });
       } else if (data.type === "review") {
+        const shopperName =
+          typeof data.shopperName === "string" && data.shopperName.trim()
+            ? data.shopperName.trim()
+            : "A shopper";
         activities.push({
           id: `customer-${d.id}`,
           icon: "review",
-          text: `A shopper left a ${Number(data.rating) || 0}-star review`,
+          text: `${shopperName} left a ${Number(data.rating) || 0}-star review`,
           time: ms ? formatRelativeTime(ms) : "Recently",
           timestamp: ms,
         });
       }
     });
 
-    // Sort descending by timestamp
-    activities.sort((a, b) => b.timestamp - a.timestamp);
-    return activities;
+    const reviewEvents = reviewsSnap.docs.map((reviewDoc) => {
+      const data = reviewDoc.data();
+      const reviewer =
+        (typeof data.reviewerName === "string" && data.reviewerName.trim()) ||
+        "A shopper";
+      const rating = Number(data.rating) || 0;
+      const ms = timestampMillis(data.createdAt);
+      return {
+        id: `review-${reviewDoc.id}`,
+        icon: "review",
+        text: `${reviewer} left a ${rating}-star review`,
+        time: ms ? formatRelativeTime(ms) : "Recently",
+        timestamp: ms,
+        reviewer: reviewer.toLocaleLowerCase(),
+      };
+    });
+
+    const reviewActivityEvents = activities.filter((item) => item.icon === "review");
+    const mergedReviewEvents = reviewEvents.filter(
+      (reviewEvent) =>
+        !reviewActivityEvents.some((activityEvent) => {
+          const activityData = customerActivitySnap.docs.find(
+            (activityDoc) => `customer-${activityDoc.id}` === activityEvent.id
+          )?.data();
+          const shopperName =
+            typeof activityData?.shopperName === "string"
+              ? activityData.shopperName.trim().toLocaleLowerCase()
+              : "";
+          return (
+            shopperName !== "" &&
+            shopperName === reviewEvent.reviewer &&
+            Math.abs(activityEvent.timestamp - reviewEvent.timestamp) <= 10_000
+          );
+        })
+    );
+
+    const merged: MerchantActivityItem[] = [
+      ...activities,
+      ...mergedReviewEvents.map((event) => ({
+        id: event.id,
+        icon: event.icon,
+        text: event.text,
+        time: event.time,
+        timestamp: event.timestamp,
+      })),
+    ];
+    merged.sort((a, b) => b.timestamp - a.timestamp);
+    return merged;
   } catch (err) {
     const error = err as { code?: unknown; message?: unknown };
     console.warn(
@@ -1486,20 +1537,30 @@ export const submitMerchantReview = async (
   merchantId: string | number,
   userId: string,
   rating: number,
-  comment: string = ""
+  comment: string = "",
+  imageUrls?: string[]
 ): Promise<boolean> => {
   if (!isFirebaseConfigured() || !merchantId || !userId) return false;
   try {
     const reviewRef = doc(db, "merchants", String(merchantId), "reviews", String(userId));
+    const existingReview = await getDoc(reviewRef);
+    const reviewData: Record<string, unknown> = {
+      userId: String(userId),
+      rating: Math.max(1, Math.min(5, Math.round(rating))),
+      comment: comment.trim(),
+      updatedAt: serverTimestamp(),
+    };
+    if (!existingReview.exists()) {
+      reviewData.createdAt = serverTimestamp();
+    }
+    if (imageUrls) {
+      reviewData.imageUrls = imageUrls
+        .filter((url) => typeof url === "string")
+        .slice(0, 3);
+    }
     await setDoc(
       reviewRef,
-      {
-        userId: String(userId),
-        rating: Math.max(1, Math.min(5, Math.round(rating))),
-        comment: comment.trim(),
-        updatedAt: serverTimestamp(),
-        createdAt: serverTimestamp(),
-      },
+      reviewData,
       { merge: true }
     );
     return true;
@@ -1512,7 +1573,7 @@ export const submitMerchantReview = async (
 export const fetchUserMerchantReview = async (
   merchantId: string | number,
   userId: string
-): Promise<{ rating: number; comment: string } | null> => {
+): Promise<{ rating: number; comment: string; imageUrls: string[] } | null> => {
   if (!isFirebaseConfigured() || !merchantId || !userId) return null;
   try {
     const snap = await getDoc(
@@ -1523,6 +1584,11 @@ export const fetchUserMerchantReview = async (
       return {
         rating: typeof data.rating === "number" ? data.rating : 0,
         comment: data.comment || "",
+        imageUrls: Array.isArray(data.imageUrls)
+          ? data.imageUrls
+              .filter((url: unknown): url is string => typeof url === "string")
+              .slice(0, 3)
+          : [],
       };
     }
     return null;

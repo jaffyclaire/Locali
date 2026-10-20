@@ -20,7 +20,11 @@ import {
   getSavedMerchantIds,
   toggleSaveMerchant,
 } from "../../../src/services/firestoreService";
-import { fetchMerchantPostsForCustomer } from "../../../src/services/merchantCommunityService";
+import {
+  fetchMerchantPostsForCustomer,
+  fetchMerchantReviews,
+  MerchantReviewWithProfile,
+} from "../../../src/services/merchantCommunityService";
 import { openDirections } from "../../../src/services/directionsService";
 
 export default function BusinessPage() {
@@ -36,6 +40,8 @@ export default function BusinessPage() {
 
   const [merchant, setMerchant] = useState<Merchant | null>(null);
   const [posts, setPosts] = useState<MerchantPost[]>([]);
+  const [reviews, setReviews] = useState<MerchantReviewWithProfile[]>([]);
+  const [reviewsError, setReviewsError] = useState(false);
   const [businessLoading, setBusinessLoading] = useState(true);
   const [businessError, setBusinessError] = useState(false);
   const [postsLoading, setPostsLoading] = useState(false);
@@ -68,7 +74,7 @@ export default function BusinessPage() {
 
         setMerchant(found);
         setPostsLoading(true);
-        const [businessPosts, savedMerchantIds] = await Promise.all([
+        const [businessPosts, savedMerchantIds, businessReviews] = await Promise.all([
           fetchMerchantPostsForCustomer(String(found.id)).catch((error) => {
             if (!cancelled) {
               setPostsError(true);
@@ -79,9 +85,17 @@ export default function BusinessPage() {
           user?.uid
             ? getSavedMerchantIds(user.uid)
             : Promise.resolve([]),
+          fetchMerchantReviews(String(found.id)).catch((error) => {
+            if (!cancelled) {
+              setReviewsError(true);
+              console.warn("[BusinessPage] Failed to load reviews:", error);
+            }
+            return [];
+          }),
         ]);
         if (cancelled) return;
         setPosts(businessPosts);
+        setReviews(businessReviews);
         setIsSaved(savedMerchantIds.includes(String(found.id)));
       } catch (error) {
         if (!cancelled) {
@@ -199,6 +213,8 @@ export default function BusinessPage() {
                 saving={saving}
                 onToggleSave={() => void handleToggleSave()}
                 onGetDirections={() => void handleDirections()}
+                reviews={reviews}
+                reviewsError={reviewsError}
               />
             </ScrollView>
           </>

@@ -15,9 +15,9 @@ export default function RootLayout() {
           <Stack.Screen name="(shopper)" />
           <Stack.Screen name="(merchant)" />
           <Stack.Screen name="(admin)" />
+          <Stack.Screen name="reviews/[merchantId]" />
         </Stack>
       </AuthRoleProvider>
     </SafeAreaProvider>
   );
 }
-

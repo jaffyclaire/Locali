@@ -64,6 +64,29 @@ export const pickMultipleImagesFromGallery = async (): Promise<string[]> => {
   }
 };
 
+export const pickReviewImagesFromGallery = async (
+  selectionLimit: number
+): Promise<{ uris: string[]; permissionDenied: boolean }> => {
+  const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+  if (status !== "granted") {
+    return { uris: [], permissionDenied: true };
+  }
+
+  const result = await ImagePicker.launchImageLibraryAsync({
+    mediaTypes: ["images"],
+    allowsMultipleSelection: true,
+    selectionLimit: Math.max(1, Math.min(3, selectionLimit)),
+    quality: 0.7,
+  });
+
+  return {
+    uris: result.canceled
+      ? []
+      : (result.assets || []).slice(0, selectionLimit).map((asset) => asset.uri),
+    permissionDenied: false,
+  };
+};
+
 /**
  * Pick an avatar image with 1:1 aspect ratio
  */
