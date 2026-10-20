@@ -1,0 +1,22 @@
+Add this match block inside match /merchants/{merchantId}, alongside the
+existing posts, reviews, photos, and holidayClosures subcollection matches:
+
+match /activity/{activityId} {
+  allow read: if isMerchantOwner(merchantId);
+  allow create: if isAuthenticated()
+    && request.resource.data.keys().hasOnly([
+      "type",
+      "shopperName",
+      "rating",
+      "comment",
+      "createdAt"
+    ])
+    && request.resource.data.type in ["saved", "review"]
+    && request.resource.data.shopperName is string
+    && request.resource.data.createdAt == request.time;
+  allow update, delete: if false;
+}
+
+Deploy the updated Firestore rules from the Firebase console (Firestore
+Database > Rules) after reviewing them. The existing app writes activity
+documents with these fields and reads the subcollection as the merchant owner.

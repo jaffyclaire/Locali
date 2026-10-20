@@ -126,6 +126,7 @@ export interface FlagReportItem {
   reporterId?: string;
   status?: string;
   resolutionAction?: string;
+  createdAt?: unknown;
 }
 
 export interface DailyHourItem {

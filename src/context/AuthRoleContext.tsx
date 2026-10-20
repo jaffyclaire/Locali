@@ -284,6 +284,7 @@ export const AuthRoleProvider: React.FC<{ children: ReactNode }> = ({
     try {
       if (Platform.OS === "web") {
         const provider = new GoogleAuthProvider();
+        provider.setCustomParameters({ prompt: "select_account" });
         const result = await signInWithPopup(auth, provider);
         const savedUser = await saveUserFromFirebaseAuth(result.user);
         if (!savedUser) {
@@ -305,6 +306,11 @@ export const AuthRoleProvider: React.FC<{ children: ReactNode }> = ({
 
       configureGoogleSignIn();
       await googleSignin.hasPlayServices();
+      try {
+        await googleSignin.signOut();
+      } catch {
+        // Clearing a cached account is best-effort before showing the picker.
+      }
       const response = await googleSignin.signIn();
       if (response.type !== "success") {
         throw new Error("Google sign-in was cancelled.");
@@ -422,6 +428,13 @@ export const AuthRoleProvider: React.FC<{ children: ReactNode }> = ({
   const signOut = async () => {
     if (isFirebaseConfigured()) {
       await firebaseSignOut(auth);
+    }
+    if (Platform.OS !== "web" && GoogleSignin) {
+      try {
+        await GoogleSignin.signOut();
+      } catch {
+        // Firebase sign-out is authoritative; native account cleanup is best-effort.
+      }
     }
     setIsAuthenticated(false);
     setFirebaseUser(null);

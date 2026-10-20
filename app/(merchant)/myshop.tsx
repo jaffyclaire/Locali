@@ -16,17 +16,14 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useFocusEffect } from "expo-router";
 import { Colors, Radius, Shadows } from "../../src/constants/theme";
 import {
-  StarIcon,
   PlusIcon,
-  ClockIcon,
-  LocationIcon,
-  TagIcon,
   CloseIcon,
   CheckIcon,
 } from "../../src/components/icons/AppIcons";
 import { HolidayClosureCard } from "../../src/components/common/HolidayClosureCard";
 import { LocationPicker } from "../../src/components/common/LocationPicker";
 import { PostCard } from "../../src/components/PostCard";
+import { BusinessProfile } from "../../src/components/BusinessProfile";
 import { useAuthRole } from "../../src/context/AuthRoleContext";
 import {
   fetchMerchantByOwner,
@@ -407,75 +404,12 @@ export default function MerchantMyShop() {
 
           <ScrollView
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.previewScrollContent}
+            contentContainerStyle={styles.scrollContent}
           >
-            {merchant?.coverPhotoUrl || merchant?.img ? (
-              <Image
-                source={{
-                  uri: merchant?.coverPhotoUrl || merchant?.img,
-                }}
-                style={styles.previewCoverImage}
-                resizeMode="cover"
-              />
-            ) : (
-              <View style={styles.previewCoverPlaceholder}>
-                <Text style={styles.previewCoverPlaceholderText}>No cover photo</Text>
-              </View>
-            )}
-            <View style={styles.previewCard}>
-              <Text style={styles.previewMerchantName}>
-                {merchant?.name || "Untitled Business"}
-              </Text>
-              <View style={styles.previewMetaRow}>
-                <View style={styles.previewTagPill}>
-                  <Text style={styles.previewTagText}>
-                    {merchant?.category || "Uncategorized"}
-                  </Text>
-                </View>
-                <View style={styles.ratingBadge}>
-                  <StarIcon size={14} color={Colors.amber[500]} />
-                  <Text style={styles.previewRatingText}>
-                    {merchant?.rating ?? 0} ({merchant?.reviews ?? 0})
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.previewDetailsBox}>
-                <View style={styles.previewDetailRow}>
-                  <ClockIcon size={16} color={Colors.slate[600]} />
-                  <Text style={styles.previewDetailItem}>
-                    {merchant?.hours || "Hours not set"}
-                  </Text>
-                </View>
-                <View style={styles.previewDetailRow}>
-                  <LocationIcon size={16} color={Colors.slate[600]} />
-                  <Text style={styles.previewDetailItem}>
-                    {merchant?.address || "Address not set"}
-                  </Text>
-                </View>
-                <View style={styles.previewDetailRow}>
-                  <TagIcon size={16} color={Colors.slate[600]} />
-                  <Text style={styles.previewDetailItem}>
-                    {merchant?.description || "No description"}
-                  </Text>
-                </View>
-              </View>
-            </View>
-
-            {/* Posts Feed */}
-            {posts.length > 0 && (
-              <View style={styles.previewPostsSection}>
-                <Text style={styles.previewPostsTitle}>Posts</Text>
-                {posts.map((post) => (
-                  <PostCard
-                    key={post.id}
-                    post={post}
-                    businessName={merchant?.name || "Your business"}
-                    businessAvatarUrl={merchant?.img}
-                  />
-                ))}
-              </View>
-            )}
+            <BusinessProfile
+              merchant={merchant}
+              posts={posts}
+            />
           </ScrollView>
         </View>
       </SafeAreaView>
@@ -599,6 +533,13 @@ export default function MerchantMyShop() {
                     post={posts[0]}
                     businessName={merchant.name}
                     businessAvatarUrl={merchant.img}
+                    onEdit={() =>
+                      router.push({
+                        pathname: "/(merchant)/create-post",
+                        params: { postId: posts[0].id },
+                      })
+                    }
+                    onDelete={() => handleDeletePost(posts[0].id)}
                   />
                 </View>
               )}
@@ -933,73 +874,6 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     gap: 12,
   },
-  previewScrollContent: {
-    padding: 16,
-  },
-  previewCoverImage: {
-    width: "100%",
-    height: 180,
-    borderRadius: Radius["2xl"],
-    backgroundColor: Colors.slate[100],
-    marginBottom: 16,
-  },
-  previewCard: {
-    backgroundColor: Colors.white,
-    borderRadius: Radius["2xl"],
-    padding: 20,
-    borderWidth: 1,
-    borderColor: Colors.slate[100],
-    ...Shadows.sm,
-  },
-  previewMerchantName: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: Colors.slate[900],
-    marginBottom: 8,
-  },
-  previewMetaRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    marginBottom: 16,
-  },
-  previewTagPill: {
-    backgroundColor: Colors.teal[50],
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: Radius.full,
-  },
-  previewTagText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: Colors.teal[700],
-  },
-  ratingBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  previewRatingText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: Colors.slate[700],
-  },
-  previewDetailsBox: {
-    backgroundColor: Colors.slate[50],
-    borderRadius: Radius.xl,
-    padding: 14,
-    gap: 10,
-  },
-  previewDetailRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  previewDetailItem: {
-    fontSize: 13,
-    color: Colors.slate[600],
-    flex: 1,
-  },
   card: {
     backgroundColor: Colors.white,
     borderRadius: Radius["2xl"],
@@ -1029,20 +903,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.slate[100],
   },
   coverPlaceholderText: {
-    fontSize: 13,
-    color: Colors.slate[400],
-    fontWeight: "500",
-  },
-  previewCoverPlaceholder: {
-    width: "100%",
-    height: 180,
-    borderRadius: Radius["2xl"],
-    backgroundColor: Colors.slate[100],
-    marginBottom: 16,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  previewCoverPlaceholderText: {
     fontSize: 13,
     color: Colors.slate[400],
     fontWeight: "500",
@@ -1417,15 +1277,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.slate[50],
     textAlignVertical: "top",
     height: 80,
-  },
-  previewPostsSection: {
-    marginTop: 16,
-    gap: 12,
-  },
-  previewPostsTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: Colors.slate[800],
   },
   currentPostHeader: {
     flexDirection: "row",

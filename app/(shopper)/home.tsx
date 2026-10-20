@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   StyleSheet,
   Modal,
   ActivityIndicator,
+  RefreshControl,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -16,12 +17,10 @@ import { Colors, Radius, Shadows } from "../../src/constants/theme";
 import {
   LocationIcon,
   ChevronDownIcon,
-  StarIcon,
   CloseIcon,
   CheckIcon,
 } from "../../src/components/icons/AppIcons";
 import { HeroAdCarousel } from "../../src/components/common/HeroAdCarousel";
-import { MerchantPhoto } from "../../src/components/common/MerchantPhoto";
 import { MerchantSheet } from "../../src/components/common/MerchantSheet";
 import { PostCard } from "../../src/components/PostCard";
 import { LocationPicker } from "../../src/components/common/LocationPicker";
@@ -30,7 +29,6 @@ import {
   fetchMerchants,
 } from "../../src/services/firestoreService";
 import { fetchMerchantPostsForCustomer } from "../../src/services/merchantCommunityService";
-import { haversineDistanceKm, isMerchantOpenNow } from "../../src/services/geocodingService";
 import { useAuthRole } from "../../src/context/AuthRoleContext";
 
 interface HomeFeedPost {
@@ -65,15 +63,14 @@ export default function HomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { user, updateUser } = useAuthRole();
-  const [activeFilter, setActiveFilter] = useState("Nearby");
+  const [activePostFilter, setActivePostFilter] = useState("All");
   const [selectedMerchant, setSelectedMerchant] = useState<MapMerchant | null>(null);
   const [merchants, setMerchants] = useState<MapMerchant[]>([]);
   const [businessPosts, setBusinessPosts] = useState<HomeFeedPost[]>([]);
   const [businessPostsLoading, setBusinessPostsLoading] = useState(true);
   const [businessPostsError, setBusinessPostsError] = useState(false);
   const [showMoreBusinessPosts, setShowMoreBusinessPosts] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [merchantsError, setMerchantsError] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [locationPickerVisible, setLocationPickerVisible] = useState(false);
   const [userLocation, setUserLocation] = useState<UserLocation | null>(
     user?.location || null
@@ -81,80 +78,57 @@ export default function HomeScreen() {
   // Working copy for the location picker modal
   const [pickerState, setPickerState] = useState<AddressPinState | null>(null);
 
-  useEffect(() => {
-    const loadData = async () => {
-      setLoading(true);
-      setMerchantsError(false);
-      setBusinessPostsLoading(true);
-      setBusinessPostsError(false);
-      try {
-        const merchantsData = await fetchMerchants();
-        setMerchants(merchantsData);
-        const postResults = await Promise.allSettled(
-          merchantsData.map(async (merchant) => ({
-            merchant,
-            posts: await fetchMerchantPostsForCustomer(String(merchant.id)),
-          }))
-        );
-        const loadedPosts = postResults.flatMap((result) =>
-          result.status === "fulfilled"
-            ? result.value.posts.map((post) => ({
-                merchant: result.value.merchant,
-                post,
-              }))
-            : []
-        );
-        loadedPosts.sort(
-          (a, b) =>
-            timestampMillis(b.post.createdAt) -
-            timestampMillis(a.post.createdAt)
-        );
-        setBusinessPosts(loadedPosts);
-        setBusinessPostsError(
-          postResults.some((result) => result.status === "rejected")
-        );
-      } catch (error) {
-        console.error("[HomeScreen] Error loading data:", error);
-        setMerchantsError(true);
-        setBusinessPostsError(true);
-      } finally {
-        setBusinessPostsLoading(false);
-        setLoading(false);
-      }
-    };
-    loadData();
+  const loadPosts = useCallback(async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true);
+    setBusinessPostsLoading(true);
+    setBusinessPostsError(false);
+    try {
+      const merchantsData = await fetchMerchants();
+      setMerchants(merchantsData);
+      const postResults = await Promise.allSettled(
+        merchantsData.map(async (merchant) => ({
+          merchant,
+          posts: await fetchMerchantPostsForCustomer(String(merchant.id)),
+        }))
+      );
+      const loadedPosts = postResults.flatMap((result) =>
+        result.status === "fulfilled"
+          ? result.value.posts.map((post) => ({
+              merchant: result.value.merchant,
+              post,
+            }))
+          : []
+      );
+      loadedPosts.sort(
+        (a, b) =>
+          timestampMillis(b.post.createdAt) -
+          timestampMillis(a.post.createdAt)
+      );
+      setBusinessPosts(loadedPosts);
+      setBusinessPostsError(
+        postResults.some((result) => result.status === "rejected")
+      );
+    } catch (error) {
+      console.error("[HomeScreen] Error loading data:", error);
+      setBusinessPostsError(true);
+    } finally {
+      setBusinessPostsLoading(false);
+      setRefreshing(false);
+    }
   }, []);
 
-  const filters = ["Nearby", "Open Now", "Budget", "Top Rated"];
+  useEffect(() => {
+    void loadPosts();
+  }, [loadPosts]);
 
-  const getFilteredMerchants = () => {
-    switch (activeFilter) {
-      case "Nearby": {
-        const refLat = userLocation?.lat ?? 37.7749;
-        const refLng = userLocation?.lng ?? -122.4194;
-        return [...merchants]
-          .filter((m) => m.latitude != null && m.longitude != null)
-          .sort((a, b) => {
-            const distA = haversineDistanceKm(refLat, refLng, a.latitude!, a.longitude!);
-            const distB = haversineDistanceKm(refLat, refLng, b.latitude!, b.longitude!);
-            return distA - distB;
-          });
-      }
-      case "Open Now":
-        return merchants.filter((m) =>
-          isMerchantOpenNow(m.weeklyHours, m.isOpen)
+  const postFilters = ["All", "Promo", "Update", "Deal"];
+  const filteredPosts =
+    activePostFilter === "All"
+      ? businessPosts
+      : businessPosts.filter(
+          ({ post }) =>
+            post.type.trim().toLowerCase() === activePostFilter.toLowerCase()
         );
-      case "Budget":
-        // No priceLevel field exists on merchant documents yet
-        return [];
-      case "Top Rated":
-        return [...merchants].sort((a, b) => b.rating - a.rating);
-      default:
-        return merchants;
-    }
-  };
-
-  const filteredMerchants = getFilteredMerchants();
   const shortLocation = userLocation?.label
     .split(",")
     .map((part) => part.trim())
@@ -227,18 +201,18 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Horizontal filter chips */}
+          {/* Post type filter chips */}
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.filterPillsScroll}
           >
-            {filters.map((f) => {
-              const isActive = activeFilter === f;
+            {postFilters.map((filter) => {
+              const isActive = activePostFilter === filter;
               return (
                 <TouchableOpacity
-                  key={f}
-                  onPress={() => setActiveFilter(f)}
+                  key={filter}
+                  onPress={() => setActivePostFilter(filter)}
                   style={[
                     styles.filterPill,
                     isActive ? styles.filterPillActive : styles.filterPillInactive,
@@ -253,7 +227,7 @@ export default function HomeScreen() {
                         : styles.filterPillTextInactive,
                     ]}
                   >
-                    {f}
+                    {filter}
                   </Text>
                 </TouchableOpacity>
               );
@@ -264,6 +238,14 @@ export default function HomeScreen() {
         {/* Feed Content */}
         <ScrollView
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => void loadPosts(true)}
+              tintColor={Colors.teal[700]}
+              colors={[Colors.teal[700]]}
+            />
+          }
           contentContainerStyle={[
             styles.feedContent,
             { paddingBottom: 20 + insets.bottom },
@@ -279,141 +261,66 @@ export default function HomeScreen() {
             }}
           />
 
-          {(businessPostsLoading ||
-            businessPosts.length > 0 ||
-            businessPostsError) && (
-            <View style={styles.businessPostsSection}>
-              <View style={styles.businessPostsHeader}>
-                <View style={styles.businessPostsHeading}>
-                  <Text style={styles.businessPostsTitle}>
-                    Latest from businesses
-                  </Text>
-                  <Text style={styles.businessPostsSubtitle}>
-                    Recent updates from local businesses
-                  </Text>
-                </View>
-              </View>
-              {businessPostsLoading ? (
-                <ActivityIndicator color={Colors.teal[700]} />
-              ) : businessPostsError && businessPosts.length === 0 ? (
-                <Text style={styles.businessPostsEmpty}>
-                  Business posts could not be loaded. Please try again later.
+          <View style={styles.businessPostsSection}>
+            <View style={styles.businessPostsHeader}>
+              <View style={styles.businessPostsHeading}>
+                <Text style={styles.businessPostsTitle}>
+                  Latest from businesses
                 </Text>
-              ) : (
-                <>
-                  {businessPostsError && (
-                    <Text style={styles.businessPostsError}>
-                      Some business posts could not be loaded.
-                    </Text>
-                  )}
-                  {businessPosts
-                    .slice(0, showMoreBusinessPosts ? 15 : 5)
-                    .map(({ merchant, post }) => (
-                      <PostCard
-                        key={`${merchant.id}-${post.id}`}
-                        post={post}
-                        businessName={merchant.name}
-                        businessAvatarUrl={merchant.img}
-                        style={styles.businessPostCard}
-                        onPressBusiness={() => setSelectedMerchant(merchant)}
-                      />
-                    ))}
-                  {businessPosts.length > 5 && (
-                    <TouchableOpacity
-                      style={styles.seeMorePostsButton}
-                      onPress={() =>
-                        setShowMoreBusinessPosts((expanded) => !expanded)
-                      }
-                      activeOpacity={0.8}
-                    >
-                      <Text style={styles.seeMorePostsText}>
-                        {showMoreBusinessPosts ? "See less" : "See more"}
-                      </Text>
-                    </TouchableOpacity>
-                  )}
-                </>
-              )}
+              </View>
             </View>
-          )}
-
-          {/* For You Section */}
-          <View style={styles.forYouSection}>
-            <Text style={styles.sectionHeader}>For You</Text>
-
-            {loading ? (
+            {businessPostsLoading ? (
               <ActivityIndicator color={Colors.teal[700]} />
-            ) : merchantsError ? (
+            ) : businessPostsError && businessPosts.length === 0 ? (
+              <Text style={styles.businessPostsEmpty}>
+                Business posts could not be loaded. Please try again later.
+              </Text>
+            ) : businessPosts.length === 0 ? (
               <View style={styles.emptyContainer}>
                 <Text style={styles.emptyText}>
-                  Businesses could not be loaded. Please try again later.
+                  No posts yet. Check Discover for businesses near you.
                 </Text>
               </View>
-            ) : filteredMerchants.length === 0 ? (
+            ) : filteredPosts.length === 0 ? (
               <View style={styles.emptyContainer}>
                 <Text style={styles.emptyText}>
-                  {!userLocation
-                    ? "Choose a location to see nearby merchants"
-                    : activeFilter === "Budget"
-                    ? "No price data available yet"
-                    : "No merchants found"}
+                  No {activePostFilter.toLowerCase()} posts yet.
                 </Text>
               </View>
             ) : (
-                filteredMerchants.map((m) => (
-                  <View key={m.id} style={styles.feedItem}>
-                    <TouchableOpacity
-                      style={styles.merchantCard}
-                      onPress={() => setSelectedMerchant(m)}
-                      activeOpacity={0.88}
-                    >
-                      <MerchantPhoto uri={m.img} style={styles.merchantImage} />
-                      <View style={styles.cardBody}>
-                        <View style={styles.cardTitleRow}>
-                          <Text style={styles.merchantCardTitle} numberOfLines={1}>
-                            {m.name}
-                          </Text>
-                          <View
-                            style={[
-                              styles.statusBadge,
-                              m.isOpen ? styles.openBadge : styles.closedBadge,
-                            ]}
-                          >
-                            <Text
-                              style={[
-                                styles.statusText,
-                                m.isOpen ? styles.openText : styles.closedText,
-                              ]}
-                            >
-                              {m.isOpen ? "Open" : "Closed"}
-                            </Text>
-                          </View>
-                        </View>
-
-                        <View style={styles.cardMetaRow}>
-                          <View style={styles.ratingRow}>
-                            <StarIcon size={12} color={Colors.amber[500]} />
-                            <Text style={styles.metaText}>
-                            {m.rating > 0 ? m.rating : "—"}
-                          </Text>
-                          </View>
-                          <Text style={styles.dotSeparator}>·</Text>
-                          <Text style={styles.metaText}>{m.distance}</Text>
-                          <Text style={styles.dotSeparator}>·</Text>
-                          <Text style={styles.metaText}>{m.category}</Text>
-                        </View>
-
-                        {m.tag && (
-                          <View style={styles.interestTagBox}>
-                            <Text style={styles.interestTagText}>
-                              Based on your interest: {m.tag}
-                            </Text>
-                          </View>
-                        )}
-                      </View>
-                    </TouchableOpacity>
-
-                  </View>
-                )))}
+              <>
+                {businessPostsError && (
+                  <Text style={styles.businessPostsError}>
+                    Some business posts could not be loaded.
+                  </Text>
+                )}
+                {filteredPosts
+                  .slice(0, showMoreBusinessPosts ? 15 : 5)
+                  .map(({ merchant, post }) => (
+                    <PostCard
+                      key={`${merchant.id}-${post.id}`}
+                      post={post}
+                      businessName={merchant.name}
+                      businessAvatarUrl={merchant.img}
+                      style={styles.businessPostCard}
+                      onPressBusiness={() => setSelectedMerchant(merchant)}
+                    />
+                  ))}
+                {filteredPosts.length > 5 && (
+                  <TouchableOpacity
+                    style={styles.seeMorePostsButton}
+                    onPress={() =>
+                      setShowMoreBusinessPosts((expanded) => !expanded)
+                    }
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.seeMorePostsText}>
+                      {showMoreBusinessPosts ? "See less" : "See more"}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </>
+            )}
           </View>
 
           <View style={{ height: 24 }} />
@@ -594,11 +501,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "700",
   },
-  businessPostsSubtitle: {
-    color: Colors.slate[500],
-    fontSize: 12,
-    marginTop: 3,
-  },
   seeMorePostsButton: {
     alignSelf: "center",
     paddingHorizontal: 18,
@@ -624,10 +526,6 @@ const styles = StyleSheet.create({
   businessPostCard: {
     marginBottom: 4,
   },
-  forYouSection: {
-    paddingHorizontal: 16,
-    marginTop: 20,
-  },
   dealsHeading: {
     marginHorizontal: 16,
     marginTop: 16,
@@ -638,90 +536,6 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: Colors.slate[900],
     marginBottom: 12,
-  },
-  feedItem: {
-    marginBottom: 12,
-  },
-  merchantCard: {
-    backgroundColor: Colors.white,
-    borderRadius: Radius["2xl"],
-    borderWidth: 1,
-    borderColor: Colors.slate[100],
-    overflow: "hidden",
-    ...Shadows.sm,
-  },
-  merchantImage: {
-    width: "100%",
-    height: 130,
-    backgroundColor: Colors.slate[100],
-  },
-  cardBody: {
-    padding: 16,
-  },
-  cardTitleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 4,
-  },
-  merchantCardTitle: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: Colors.slate[900],
-    flex: 1,
-    paddingRight: 8,
-  },
-  statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: Radius.full,
-  },
-  openBadge: {
-    backgroundColor: Colors.emerald[50],
-  },
-  closedBadge: {
-    backgroundColor: Colors.slate[100],
-  },
-  statusText: {
-    fontSize: 11,
-    fontWeight: "600",
-  },
-  openText: {
-    color: Colors.emerald[700],
-  },
-  closedText: {
-    color: Colors.slate[500],
-  },
-  cardMetaRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  ratingRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 3,
-  },
-  metaText: {
-    fontSize: 12,
-    color: Colors.slate[500],
-  },
-  dotSeparator: {
-    marginHorizontal: 6,
-    color: Colors.slate[300],
-    fontSize: 12,
-  },
-  interestTagBox: {
-    backgroundColor: Colors.teal[50],
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: Radius.md,
-    alignSelf: "flex-start",
-  },
-  interestTagText: {
-    color: Colors.teal[700],
-    fontSize: 11,
-    fontWeight: "600",
   },
   pickerModalContainer: {
     flex: 1,

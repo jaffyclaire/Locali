@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import {
   Dimensions,
   Image,
@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { Colors, Radius, Shadows } from "../constants/theme";
 import { MerchantPost } from "../types";
+import { EditIcon, TrashIcon } from "./icons/AppIcons";
 
 const { height: screenHeight, width: screenWidth } = Dimensions.get("window");
 
@@ -20,6 +21,8 @@ interface PostCardProps {
   businessName: string;
   businessAvatarUrl?: string;
   onPressBusiness?: () => void;
+  onEdit?: () => void;
+  onDelete?: () => void | Promise<void>;
   style?: ViewStyle;
 }
 
@@ -57,16 +60,39 @@ export const PostCard: React.FC<PostCardProps> = ({
   businessName,
   businessAvatarUrl,
   onPressBusiness,
+  onEdit,
+  onDelete,
   style,
 }) => {
   const [captionExpanded, setCaptionExpanded] = useState(false);
   const [captionHasMore, setCaptionHasMore] = useState(false);
   const [imageGridWidth, setImageGridWidth] = useState(0);
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
+  const [ownerMenuMode, setOwnerMenuMode] = useState<"menu" | "confirm" | null>(null);
+  const [ownerMenuPosition, setOwnerMenuPosition] = useState<{ left: number; top: number } | null>(null);
+  const ownerMenuButtonRef = useRef<View>(null);
   const images = post.images?.length ? post.images : post.image ? [post.image] : [];
   const visibleImages = images.slice(0, 4);
   const tileWidth = Math.max(0, (imageGridWidth - 6) / 2);
-  const isPromo = post.type?.toLowerCase() === "promo";
+  const normalizedType = post.type.trim().toLowerCase();
+  const isPromo = normalizedType === "promo";
+  const typeLabel = normalizedType
+    ? normalizedType.charAt(0).toUpperCase() + normalizedType.slice(1)
+    : "";
+  const closeOwnerMenu = () => setOwnerMenuMode(null);
+  const openOwnerMenu = () => {
+    ownerMenuButtonRef.current?.measureInWindow((x, y, width, height) => {
+      const menuHeight = 104;
+      const left = Math.max(8, Math.min(x + width - 176, screenWidth - 184));
+      const below = y + height + 4;
+      const top =
+        below + menuHeight <= screenHeight
+          ? below
+          : Math.max(8, y - menuHeight - 4);
+      setOwnerMenuPosition({ left, top });
+      setOwnerMenuMode("menu");
+    });
+  };
 
   const renderImage = (
     image: string,
@@ -93,35 +119,118 @@ export const PostCard: React.FC<PostCardProps> = ({
 
   return (
     <View style={[styles.card, style]}>
-      <TouchableOpacity
-        style={styles.header}
-        activeOpacity={onPressBusiness ? 0.75 : 1}
-        onPress={onPressBusiness}
-        disabled={!onPressBusiness}
+      <View style={styles.header}>
+        <TouchableOpacity
+          style={styles.headerBusiness}
+          activeOpacity={onPressBusiness ? 0.75 : 1}
+          onPress={onPressBusiness}
+          disabled={!onPressBusiness}
+        >
+          {businessAvatarUrl ? (
+            <Image source={{ uri: businessAvatarUrl }} style={styles.avatar} />
+          ) : (
+            <View style={styles.avatarFallback}>
+              <Text style={styles.avatarInitial}>
+                {businessName.trim().slice(0, 1).toUpperCase() || "B"}
+              </Text>
+            </View>
+          )}
+          <View style={styles.headerText}>
+            <View style={styles.nameAndType}>
+              <Text style={styles.businessName} numberOfLines={1}>
+                {businessName}
+              </Text>
+              {!!typeLabel && (
+                <View style={[styles.typeTag, isPromo ? styles.promoTag : styles.updateTag]}>
+                  <Text style={[styles.typeText, isPromo ? styles.promoText : styles.updateText]}>
+                    {typeLabel}
+                  </Text>
+                </View>
+              )}
+            </View>
+            <Text style={styles.postTime}>{timeAgo(post.createdAt)}</Text>
+          </View>
+        </TouchableOpacity>
+        {onEdit && onDelete && (
+          <View ref={ownerMenuButtonRef} style={styles.ownerMenuAnchor}>
+            <TouchableOpacity
+              style={styles.ownerMenuButton}
+              onPress={openOwnerMenu}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="Post actions"
+              hitSlop={4}
+            >
+              <Text style={styles.ownerMenuIcon}>...</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
+
+      <Modal
+        visible={ownerMenuMode !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={closeOwnerMenu}
       >
-        {businessAvatarUrl ? (
-          <Image source={{ uri: businessAvatarUrl }} style={styles.avatar} />
-        ) : (
-          <View style={styles.avatarFallback}>
-            <Text style={styles.avatarInitial}>
-              {businessName.trim().slice(0, 1).toUpperCase() || "B"}
-            </Text>
-          </View>
-        )}
-        <View style={styles.headerText}>
-          <Text style={styles.businessName} numberOfLines={1}>
-            {businessName}
-          </Text>
-          <Text style={styles.postTime}>{timeAgo(post.createdAt)}</Text>
+        <View style={styles.ownerMenuOverlay}>
+          <TouchableOpacity
+            style={styles.ownerMenuBackdrop}
+            activeOpacity={1}
+            onPress={closeOwnerMenu}
+            accessibilityLabel="Close post actions"
+          />
+          {ownerMenuPosition && <View style={[styles.ownerMenu, ownerMenuPosition]}>
+            {ownerMenuMode === "confirm" ? (
+              <>
+                <Text style={styles.confirmTitle}>Delete this post?</Text>
+                <View style={styles.confirmActions}>
+                  <TouchableOpacity
+                    style={[styles.confirmButton, styles.cancelConfirmButton]}
+                    onPress={closeOwnerMenu}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.menuActionText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.confirmButton, styles.deleteConfirmButton]}
+                    onPress={() => {
+                      closeOwnerMenu();
+                      void onDelete?.();
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.deleteActionText}>Delete</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            ) : (
+              <>
+                <TouchableOpacity
+                  style={styles.menuAction}
+                  onPress={() => {
+                    closeOwnerMenu();
+                    onEdit?.();
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <EditIcon size={16} color={Colors.slate[700]} />
+                  <Text style={styles.menuActionText}>Edit post</Text>
+                </TouchableOpacity>
+                <View style={styles.menuDivider} />
+                <TouchableOpacity
+                  style={styles.menuAction}
+                  onPress={() => setOwnerMenuMode("confirm")}
+                  activeOpacity={0.7}
+                >
+                  <TrashIcon size={16} color={Colors.rose[600]} />
+                  <Text style={styles.deleteActionText}>Delete post</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>}
         </View>
-        {!!post.type && (
-          <View style={[styles.typeTag, isPromo ? styles.promoTag : styles.updateTag]}>
-            <Text style={[styles.typeText, isPromo ? styles.promoText : styles.updateText]}>
-              {isPromo ? "Promo" : "Update"}
-            </Text>
-          </View>
-        )}
-      </TouchableOpacity>
+      </Modal>
 
       {!!post.caption && (
         <View style={styles.captionContainer}>
@@ -260,6 +369,13 @@ const styles = StyleSheet.create({
     padding: 14,
     gap: 10,
   },
+  headerBusiness: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
   avatar: {
     width: 40,
     height: 40,
@@ -281,8 +397,15 @@ const styles = StyleSheet.create({
   },
   headerText: {
     flex: 1,
+    minWidth: 0,
+  },
+  nameAndType: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
   },
   businessName: {
+    flexShrink: 1,
     color: Colors.slate[900],
     fontSize: 14,
     fontWeight: "700",
@@ -293,9 +416,10 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   typeTag: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: Radius.full,
+    flexShrink: 0,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: Radius.sm,
   },
   promoTag: {
     backgroundColor: Colors.amber[50],
@@ -315,6 +439,7 @@ const styles = StyleSheet.create({
   },
   captionContainer: {
     paddingHorizontal: 14,
+    paddingTop: 10,
     paddingBottom: 12,
   },
   caption: {
@@ -332,7 +457,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 6,
-    width: "100%",
+    alignSelf: "stretch",
+    marginHorizontal: 14,
+    borderRadius: Radius.lg,
+    overflow: "hidden",
   },
   imageTile: {
     overflow: "hidden",
@@ -396,5 +524,92 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     color: Colors.white,
     fontSize: 13,
+  },
+  ownerMenuButton: {
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: Radius.full,
+    backgroundColor: Colors.slate[50],
+  },
+  ownerMenuAnchor: {
+    width: 40,
+    height: 40,
+  },
+  ownerMenuIcon: {
+    color: Colors.slate[700],
+    fontSize: 18,
+    fontWeight: "700",
+    lineHeight: 20,
+    letterSpacing: 1,
+  },
+  ownerMenuOverlay: {
+    flex: 1,
+  },
+  ownerMenuBackdrop: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: Colors.transparent,
+  },
+  ownerMenu: {
+    position: "absolute",
+    minWidth: 176,
+    backgroundColor: Colors.white,
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+    borderRadius: Radius.lg,
+    ...Shadows.md,
+  },
+  menuAction: {
+    minHeight: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 14,
+    borderRadius: Radius.md,
+  },
+  menuDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: Colors.slate[200],
+    marginHorizontal: 10,
+  },
+  menuActionText: {
+    color: Colors.slate[800],
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  deleteActionText: {
+    color: Colors.rose[600],
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  confirmTitle: {
+    color: Colors.slate[900],
+    fontSize: 16,
+    fontWeight: "700",
+    paddingHorizontal: 14,
+    paddingTop: 8,
+    paddingBottom: 14,
+  },
+  confirmActions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: 8,
+    paddingHorizontal: 8,
+    paddingBottom: 6,
+  },
+  confirmButton: {
+    minHeight: 44,
+    minWidth: 72,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 10,
+    borderRadius: Radius.md,
+  },
+  cancelConfirmButton: {
+    backgroundColor: Colors.slate[50],
+  },
+  deleteConfirmButton: {
+    backgroundColor: Colors.rose[50],
   },
 });

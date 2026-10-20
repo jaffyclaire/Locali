@@ -8,6 +8,7 @@ import {
   StyleSheet,
   ActivityIndicator,
   RefreshControl,
+  Alert,
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -78,17 +79,31 @@ export default function MerchantDashboard() {
           Boolean(currentMerchant.isVerified && currentMerchant.verifiedTodayAt);
         setCheckedIn(isVerifiedToday);
 
-        const [mMetrics, mActivities, mStreak, mPosts] = await Promise.all([
+        const [metricsResult, activitiesResult, streakResult, postsResult] =
+          await Promise.allSettled([
           fetchMerchantPerformanceMetrics(String(currentMerchant.id)),
           fetchMerchantRecentActivity(String(currentMerchant.id)),
           getLatestStreak(String(currentMerchant.id)),
           fetchMerchantPosts(String(currentMerchant.id)),
         ]);
 
-        setMetrics(mMetrics);
-        setActivities(mActivities);
-        setPosts(mPosts);
-        setStreak(mStreak || (isVerifiedToday ? 1 : 0));
+        if (metricsResult.status === "fulfilled") setMetrics(metricsResult.value);
+        if (activitiesResult.status === "fulfilled") {
+          setActivities(activitiesResult.value);
+        } else {
+          console.warn(
+            "loadDashboardData activity request failed:",
+            activitiesResult.reason
+          );
+        }
+        if (streakResult.status === "fulfilled") setStreak(streakResult.value);
+        if (postsResult.status === "fulfilled") setPosts(postsResult.value);
+        else {
+          console.warn(
+            "loadDashboardData post request failed:",
+            postsResult.reason
+          );
+        }
       }
     } catch (err) {
       console.warn("loadDashboardData error:", err);
@@ -373,36 +388,39 @@ export default function MerchantDashboard() {
               {/* Quick activity */}
               <View style={styles.activitySection}>
                 <Text style={styles.sectionTitle}>Recent Activity</Text>
-                {activities.length === 0 ? (
-                  <View style={styles.activityItemCard}>
-                    <CheckIcon size={18} color={Colors.emerald[600]} />
+                {activities.slice(0, 4).map((a) => (
+                  <View key={a.id} style={styles.activityItemCard}>
+                    <View style={{ width: 24, alignItems: "center" }}>
+                      {a.icon === "location" ? (
+                        <LocationIcon size={18} color={Colors.teal[700]} />
+                      ) : a.icon === "alert" ? (
+                        <AlertTriangleIcon size={18} color={Colors.rose[500]} />
+                      ) : a.icon === "saved" ? (
+                        <TagIcon size={18} color={Colors.teal[600]} />
+                      ) : (
+                        <CheckIcon size={18} color={Colors.emerald[600]} />
+                      )}
+                    </View>
                     <View style={styles.activityTextGroup}>
-                      <Text style={styles.activityText}>
-                        Listing active and verified in local search
-                      </Text>
-                      <Text style={styles.activityTime}>Today</Text>
+                      <Text style={styles.activityText}>{a.text}</Text>
+                      <Text style={styles.activityTime}>{a.time}</Text>
                     </View>
                   </View>
-                ) : (
-                  activities.map((a, i) => (
-                    <View key={i} style={styles.activityItemCard}>
-                      <View style={{ width: 24, alignItems: "center" }}>
-                        {a.icon === "location" ? (
-                          <LocationIcon size={18} color={Colors.teal[700]} />
-                        ) : a.icon === "alert" ? (
-                          <AlertTriangleIcon size={18} color={Colors.rose[500]} />
-                        ) : a.icon === "saved" ? (
-                          <TagIcon size={18} color={Colors.teal[600]} />
-                        ) : (
-                          <CheckIcon size={18} color={Colors.emerald[600]} />
-                        )}
-                      </View>
-                      <View style={styles.activityTextGroup}>
-                        <Text style={styles.activityText}>{a.text}</Text>
-                        <Text style={styles.activityTime}>{a.time}</Text>
-                      </View>
+                ))}
+                {activities.length > 4 && (
+                  <TouchableOpacity
+                    style={styles.activityItemCard}
+                    onPress={() => router.push("/(merchant)/activity")}
+                    activeOpacity={0.75}
+                    accessibilityRole="button"
+                    accessibilityLabel="See more activity"
+                  >
+                    <View style={{ width: 24, alignItems: "center" }} />
+                    <View style={styles.activityTextGroup}>
+                      <Text style={styles.seeMoreActivity}>See more</Text>
                     </View>
-                  ))
+                    <RightArrowIcon size={18} color={Colors.teal[700]} />
+                  </TouchableOpacity>
                 )}
               </View>
 
@@ -457,20 +475,25 @@ export default function MerchantDashboard() {
                         post={post}
                         businessName={merchant.name}
                         businessAvatarUrl={merchant.img}
+                        onEdit={() =>
+                          router.push({
+                            pathname: "/(merchant)/create-post",
+                            params: { postId: post.id },
+                          })
+                        }
+                        onDelete={async () => {
+                          try {
+                            await deleteMerchantPost(String(merchant.id), post.id);
+                            setPosts((prev) => prev.filter((item) => item.id !== post.id));
+                          } catch (error) {
+                            console.error(
+                              "[MerchantDashboard] Failed to delete post:",
+                              error
+                            );
+                            Alert.alert("Delete Failed", "Could not delete post.");
+                          }
+                        }}
                       />
-                      <View style={styles.postDeleteRow}>
-                        <TouchableOpacity
-                          onPress={async () => {
-                            if (merchant) {
-                              await deleteMerchantPost(String(merchant.id), post.id);
-                              setPosts((prev) => prev.filter((p) => p.id !== post.id));
-                            }
-                          }}
-                          activeOpacity={0.7}
-                        >
-                          <Text style={styles.postDelete}>Delete post</Text>
-                        </TouchableOpacity>
-                      </View>
                     </View>
                   ))
                 )}
@@ -861,17 +884,13 @@ const styles = StyleSheet.create({
     color: Colors.slate[400],
     marginTop: 2,
   },
+  seeMoreActivity: {
+    color: Colors.teal[700],
+    fontSize: 13,
+    fontWeight: "700",
+  },
   dashboardPostItem: {
     gap: 6,
-  },
-  postDeleteRow: {
-    alignItems: "flex-end",
-    paddingHorizontal: 4,
-  },
-  postDelete: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: Colors.rose[500],
   },
   createPostCard: {
     backgroundColor: Colors.teal[50],

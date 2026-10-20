@@ -6,7 +6,6 @@ import {
   NotificationItem,
   MapMerchant,
   DailyHourItem,
-  FlagReportItem,
 } from "../types";
 
 export const MERCHANTS: Merchant[] = [
@@ -268,33 +267,6 @@ export const DAILY_HOURS: DailyHourItem[] = [
   { day: "Sun", hours: "Closed" },
 ];
 
-export const FLAG_REPORTS: FlagReportItem[] = [
-  {
-    id: 1,
-    reporter: "Nearby shopper",
-    issue: "Wrong closing hours",
-    detail: "Reported closing at 7 PM but listing shows 9 PM.",
-    time: "1 hr ago",
-    resolved: false,
-  },
-  {
-    id: 2,
-    reporter: "Anonymous user",
-    issue: "Closed permanently",
-    detail: "Store appears to be closed on arrival.",
-    time: "3 hr ago",
-    resolved: false,
-  },
-  {
-    id: 3,
-    reporter: "Regular visitor",
-    issue: "Moved address",
-    detail: "Location has changed from Market St.",
-    time: "Yesterday",
-    resolved: true,
-  },
-];
-
 export const CATEGORIES_LIST = [
   "Coffee",
   "Groceries",
@@ -306,4 +278,3 @@ export const CATEGORIES_LIST = [
 ];
 
 export const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-

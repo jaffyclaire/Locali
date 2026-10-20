@@ -12,7 +12,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Colors, Radius, Shadows } from "../../src/constants/theme";
 import { useAuthRole } from "../../src/context/AuthRoleContext";
@@ -27,32 +27,67 @@ import {
 import {
   fetchMerchantByOwner,
   createMerchantPost,
+  fetchMerchantPosts,
+  updateMerchantPost,
 } from "../../src/services/firestoreService";
 import { Merchant } from "../../src/types";
 
 export default function CreatePostScreen() {
   const router = useRouter();
+  const { postId: postIdParam } = useLocalSearchParams<{ postId?: string | string[] }>();
+  const postId = Array.isArray(postIdParam) ? postIdParam[0] : postIdParam;
   const { user } = useAuthRole();
 
   const [merchant, setMerchant] = useState<Merchant | null>(null);
   const [postCaption, setPostCaption] = useState("");
   const [postImageUris, setPostImageUris] = useState<string[]>([]);
+  const [postType, setPostType] = useState("update");
   const [creatingPost, setCreatingPost] = useState(false);
   const [loadingMerchant, setLoadingMerchant] = useState(true);
+  const [editLoadError, setEditLoadError] = useState(false);
 
   useEffect(() => {
-    if (!user?.uid) return;
-    fetchMerchantByOwner(user.uid)
-      .then((m) => {
-        setMerchant(m);
-      })
-      .catch((err) => {
-        console.warn("fetchMerchantByOwner error:", err);
-      })
-      .finally(() => {
+    let cancelled = false;
+    const loadForm = async () => {
+      if (!user?.uid) {
         setLoadingMerchant(false);
-      });
-  }, [user?.uid]);
+        return;
+      }
+      try {
+        const currentMerchant = await fetchMerchantByOwner(user.uid);
+        if (cancelled) return;
+        setMerchant(currentMerchant);
+        if (postId && currentMerchant) {
+          const posts = await fetchMerchantPosts(String(currentMerchant.id));
+          const selectedPost = posts.find((post) => post.id === postId);
+          if (!selectedPost) {
+            setEditLoadError(true);
+          } else {
+            setPostCaption(selectedPost.caption);
+            setPostType(selectedPost.type || "update");
+            setPostImageUris(selectedPost.images?.length
+              ? selectedPost.images
+              : selectedPost.image
+                ? [selectedPost.image]
+                : []);
+          }
+        } else if (postId) {
+          setEditLoadError(true);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setEditLoadError(Boolean(postId));
+          console.warn("loadCreatePostForm error:", err);
+        }
+      } finally {
+        if (!cancelled) setLoadingMerchant(false);
+      }
+    };
+    void loadForm();
+    return () => {
+      cancelled = true;
+    };
+  }, [postId, user?.uid]);
 
   const handlePickPostImages = async () => {
     try {
@@ -82,22 +117,34 @@ export default function CreatePostScreen() {
     try {
       setCreatingPost(true);
       const uploadedUrls: string[] = [];
-
-      // Upload each selected image to Cloudinary
       for (let i = 0; i < postImageUris.length; i++) {
         const uri = postImageUris[i];
+        if (/^https?:\/\//i.test(uri)) {
+          uploadedUrls.push(uri);
+          continue;
+        }
         const remotePath = `merchants/${merchant.id}/posts/${Date.now()}_${i}.jpg`;
         const downloadUrl = await uploadImageAsync(uri, remotePath);
-        if (downloadUrl) {
-          uploadedUrls.push(downloadUrl);
+        if (!downloadUrl) {
+          throw new Error(`Photo ${i + 1} could not be uploaded.`);
         }
+        uploadedUrls.push(downloadUrl);
       }
 
-      await createMerchantPost(String(merchant.id), {
-        images: uploadedUrls,
-        caption: postCaption.trim(),
-        type: "update",
-      });
+      if (postId) {
+        await updateMerchantPost(String(merchant.id), postId, {
+          images: uploadedUrls,
+          caption: postCaption.trim(),
+          type: postType,
+        });
+      } else {
+        const createdPostId = await createMerchantPost(String(merchant.id), {
+          images: uploadedUrls,
+          caption: postCaption.trim(),
+          type: "update",
+        });
+        if (!createdPostId) throw new Error("The post could not be created.");
+      }
 
       // Clear state
       setPostCaption("");
@@ -110,8 +157,17 @@ export default function CreatePostScreen() {
         router.replace("/(merchant)/dashboard");
       }
     } catch (err) {
-      console.error("handleCreatePost error:", err);
-      Alert.alert("Error", "Failed to create post. Please try again.");
+      const error = err as { code?: unknown; message?: unknown };
+      const code = typeof error.code === "string" ? error.code : "unknown";
+      const message =
+        typeof error.message === "string" ? error.message : "Please try again.";
+      console.error(postId ? "handleUpdatePost error:" : "handleCreatePost error:", err);
+      Alert.alert(
+        postId ? "Update failed" : "Error",
+        postId
+          ? `Could not update this post (${code}): ${message}`
+          : "Failed to create post. Please try again."
+      );
     } finally {
       setCreatingPost(false);
     }
@@ -143,7 +199,9 @@ export default function CreatePostScreen() {
             <CloseIcon size={20} color={Colors.slate[700]} />
           </TouchableOpacity>
 
-          <Text style={styles.screenTitle}>Create post</Text>
+          <Text style={styles.screenTitle}>
+            {postId ? "Edit post" : "Create post"}
+          </Text>
 
           <TouchableOpacity
             style={[styles.headerPostBtn, isPostDisabled && styles.headerPostBtnDisabled]}
@@ -154,7 +212,9 @@ export default function CreatePostScreen() {
             {creatingPost ? (
               <ActivityIndicator size="small" color={Colors.white} />
             ) : (
-              <Text style={styles.headerPostBtnText}>Post</Text>
+              <Text style={styles.headerPostBtnText}>
+                {postId ? "Save changes" : "Post"}
+              </Text>
             )}
           </TouchableOpacity>
         </View>
@@ -162,6 +222,12 @@ export default function CreatePostScreen() {
         {loadingMerchant ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={Colors.teal[700]} />
+          </View>
+        ) : editLoadError ? (
+          <View style={styles.loadingContainer}>
+            <Text style={styles.editLoadError}>
+              This post could not be loaded for editing.
+            </Text>
           </View>
         ) : (
           <ScrollView
@@ -205,6 +271,34 @@ export default function CreatePostScreen() {
               autoFocus
               textAlignVertical="top"
             />
+
+            {postId && (
+              <View style={styles.postTypeSelector}>
+                <Text style={styles.postTypeLabel}>Post type</Text>
+                <View style={styles.postTypeOptions}>
+                  {Array.from(new Set(["update", "promo", "deal", postType])).map((type) => (
+                    <TouchableOpacity
+                      key={type}
+                      style={[
+                        styles.postTypeOption,
+                        postType === type && styles.postTypeOptionSelected,
+                      ]}
+                      onPress={() => setPostType(type)}
+                      activeOpacity={0.75}
+                    >
+                      <Text
+                        style={[
+                          styles.postTypeOptionText,
+                          postType === type && styles.postTypeOptionTextSelected,
+                        ]}
+                      >
+                        {type.charAt(0).toUpperCase() + type.slice(1)}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            )}
 
             {/* Photos Preview Grid / Row */}
             {postImageUris.length > 0 && (
@@ -259,7 +353,9 @@ export default function CreatePostScreen() {
               {creatingPost ? (
                 <ActivityIndicator size="small" color={Colors.white} />
               ) : (
-                <Text style={styles.bottomPostButtonText}>Post</Text>
+                <Text style={styles.bottomPostButtonText}>
+                  {postId ? "Save changes" : "Post"}
+                </Text>
               )}
             </TouchableOpacity>
           </ScrollView>
@@ -377,6 +473,44 @@ const styles = StyleSheet.create({
     textAlignVertical: "top",
     paddingVertical: 8,
     lineHeight: 22,
+  },
+  postTypeSelector: {
+    marginBottom: 16,
+  },
+  postTypeLabel: {
+    color: Colors.slate[700],
+    fontSize: 13,
+    fontWeight: "700",
+    marginBottom: 8,
+  },
+  postTypeOptions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  postTypeOption: {
+    borderWidth: 1,
+    borderColor: Colors.slate[200],
+    borderRadius: Radius.full,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  postTypeOptionSelected: {
+    backgroundColor: Colors.teal[50],
+    borderColor: Colors.teal[600],
+  },
+  postTypeOptionText: {
+    color: Colors.slate[600],
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  postTypeOptionTextSelected: {
+    color: Colors.teal[700],
+  },
+  editLoadError: {
+    color: Colors.rose[600],
+    textAlign: "center",
+    paddingHorizontal: 24,
   },
   selectedPhotosSection: {
     marginVertical: 12,

@@ -186,31 +186,3 @@ export const createMerchantCustomerActivity = async (
     createdAt: serverTimestamp(),
   });
 };
-
-export const fetchMerchantCustomerActivity = async (
-  merchantId: string
-): Promise<MerchantCustomerActivity[]> => {
-  if (!isFirebaseConfigured() || !merchantId) {
-    throw new Error("Merchant activity is unavailable.");
-  }
-
-  const snapshot = await getDocs(
-    collection(db, "merchants", merchantId, "activity")
-  );
-  const activities = snapshot.docs.map((activityDoc) => {
-    const data = activityDoc.data();
-    return {
-      id: activityDoc.id,
-      type: data.type === "review" ? "review" : "saved",
-      shopperName:
-        typeof data.shopperName === "string" ? data.shopperName : "A shopper",
-      rating: typeof data.rating === "number" ? data.rating : undefined,
-      comment: typeof data.comment === "string" ? data.comment : undefined,
-      createdAt: data.createdAt,
-    } satisfies MerchantCustomerActivity;
-  });
-
-  return activities.sort(
-    (a, b) => timestampMillis(b.createdAt) - timestampMillis(a.createdAt)
-  );
-};

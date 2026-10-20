@@ -17,7 +17,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Merchant } from "../../types";
 import MerchantMap from "../MerchantMap";
 import { MerchantPhoto } from "./MerchantPhoto";
-import { PostCard } from "../PostCard";
 // DAILY_HOURS import removed — using merchant.weeklyHours from Firestore instead
 import { Colors, Radius, Shadows } from "../../constants/theme";
 import {
@@ -32,7 +31,6 @@ import {
 import { openDirections } from "../../services/directionsService";
 import { useAuthRole } from "../../context/AuthRoleContext";
 import {
-  MerchantPost,
   submitMerchantReview,
   fetchUserMerchantReview,
   getSavedMerchantIds,
@@ -42,7 +40,6 @@ import {
   fetchMerchantReviews,
   MerchantReviewWithProfile,
   createMerchantCustomerActivity,
-  fetchMerchantPostsForCustomer,
   saveMerchantReviewProfile,
 } from "../../services/merchantCommunityService";
 
@@ -90,9 +87,6 @@ export const MerchantSheet: React.FC<MerchantSheetProps> = ({
   const [reported, setReported] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [reportOption, setReportOption] = useState("");
-  const [posts, setPosts] = useState<MerchantPost[]>([]);
-  const [postsLoadedForId, setPostsLoadedForId] = useState("");
-  const [postsError, setPostsError] = useState(false);
   const [userRating, setUserRating] = useState(0);
   const [reviewComment, setReviewComment] = useState("");
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
@@ -103,8 +97,6 @@ export const MerchantSheet: React.FC<MerchantSheetProps> = ({
   const [reviewsError, setReviewsError] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
   const [savingBookmark, setSavingBookmark] = useState(false);
-  const postsLoading =
-    visible && !!merchant?.id && postsLoadedForId !== String(merchant.id);
   const reviewsLoading =
     visible && !!merchant?.id && reviewsLoadedForId !== String(merchant.id);
   const ratedReviews = reviews.filter(
@@ -115,28 +107,6 @@ export const MerchantSheet: React.FC<MerchantSheetProps> = ({
       ? ratedReviews.reduce((sum, review) => sum + review.rating, 0) /
         ratedReviews.length
       : merchant?.rating || 0;
-
-  useEffect(() => {
-    if (!merchant?.id || !visible) return;
-    const merchantId = String(merchant.id);
-    let cancelled = false;
-    fetchMerchantPostsForCustomer(merchantId)
-      .then((latestPosts) => {
-        if (cancelled) return;
-        setPosts(latestPosts);
-        setPostsLoadedForId(merchantId);
-        setPostsError(false);
-      })
-      .catch((error) => {
-        if (cancelled) return;
-        setPostsLoadedForId(merchantId);
-        setPostsError(true);
-        console.warn("[MerchantSheet] Failed to load posts:", error);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [merchant?.id, visible]);
 
   useEffect(() => {
     if (!merchant?.id || !visible) return;
@@ -305,7 +275,10 @@ export const MerchantSheet: React.FC<MerchantSheetProps> = ({
   const openBusinessPage = () => {
     if (!merchant) return;
     onClose();
-    router.push(`/(shopper)/business/${merchant.id}`);
+    router.push({
+      pathname: "/(shopper)/business/[merchantId]",
+      params: { merchantId: String(merchant.id) },
+    });
   };
 
   const handleSubmitReport = () => {
@@ -485,29 +458,6 @@ export const MerchantSheet: React.FC<MerchantSheetProps> = ({
                 )}
               </View>
             </View>
-
-            {(postsLoading || postsError || posts.length > 0) && (
-              <View style={styles.postsSection}>
-                <Text style={styles.sectionTitle}>Posts</Text>
-                {postsLoading ? (
-                  <ActivityIndicator color={Colors.teal[700]} />
-                ) : postsError ? (
-                  <Text style={styles.postsEmpty}>
-                    Posts could not be loaded. Please try again later.
-                  </Text>
-                ) : (
-                  posts.map((post) => (
-                    <PostCard
-                      key={post.id}
-                      post={post}
-                      businessName={merchant.name}
-                      businessAvatarUrl={merchant.img}
-                      style={styles.merchantPostCard}
-                    />
-                  ))
-                )}
-              </View>
-            )}
 
             {/* Rate & Review Section */}
             <View style={styles.reviewSectionCard}>
@@ -1107,18 +1057,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "500",
     textAlign: "center",
-  },
-  postsSection: {
-    marginBottom: 16,
-  },
-  postsEmpty: {
-    color: Colors.slate[500],
-    fontSize: 13,
-    textAlign: "center",
-    paddingVertical: 18,
-  },
-  merchantPostCard: {
-    marginBottom: 12,
   },
   checkBusinessButton: {
     flexDirection: "row",

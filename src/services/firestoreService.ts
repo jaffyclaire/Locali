@@ -381,7 +381,7 @@ export const submitFlagReport = async (params: {
 export const fetchMerchantFlagReports = async (
   merchantId: string | number
 ): Promise<FlagReportItem[]> => {
-  if (!isFirebaseConfigured()) return [];
+  if (!isFirebaseConfigured() || !merchantId) return [];
   try {
     const q = query(
       collection(db, "flagReports"),
@@ -402,13 +402,21 @@ export const fetchMerchantFlagReports = async (
         resolved: data.status === "resolved",
         status: data.status || "pending",
         resolutionAction: data.resolutionAction,
+        createdAt: data.createdAt,
       };
     });
-    reports.sort((a, b) => Number(a.resolved) - Number(b.resolved));
+    reports.sort(
+      (a, b) => timestampMillis(b.createdAt) - timestampMillis(a.createdAt)
+    );
     return reports;
   } catch (err) {
-    console.warn("fetchMerchantFlagReports error:", err);
-    return [];
+    const error = err as { code?: unknown; message?: unknown };
+    console.warn(
+      "fetchMerchantFlagReports Firestore error:",
+      typeof error.code === "string" ? error.code : "unknown",
+      typeof error.message === "string" ? error.message : "Unknown Firestore error"
+    );
+    throw err;
   }
 };
 
@@ -852,11 +860,28 @@ export const fetchMerchantPerformanceMetrics = async (
  * Recent Activity feed for Merchant Dashboard
  */
 export interface MerchantActivityItem {
+  id: string;
   icon: string;
   text: string;
   time: string;
   timestamp: number;
 }
+
+const timestampMillis = (value: unknown): number => {
+  if (value instanceof Date) return value.getTime();
+  if (value && typeof value === "object" && "toMillis" in value) {
+    const toMillis = value.toMillis;
+    if (typeof toMillis === "function") {
+      const millis: unknown = toMillis.call(value);
+      if (typeof millis === "number") return millis;
+    }
+  }
+  if (typeof value === "string" || typeof value === "number") {
+    const millis = new Date(value).getTime();
+    return Number.isNaN(millis) ? 0 : millis;
+  }
+  return 0;
+};
 
 export const fetchMerchantRecentActivity = async (
   merchantId: string
@@ -865,69 +890,81 @@ export const fetchMerchantRecentActivity = async (
   try {
     const activities: MerchantActivityItem[] = [];
 
-    // Query recent direction taps
-    const tapsSnap = await getDocs(
-      query(
-        collection(db, "directionTaps"),
-        where("merchantId", "==", String(merchantId)),
-        limit(5)
-      )
-    );
+    const [tapsSnap, flagsSnap, customerActivitySnap] = await Promise.all([
+      getDocs(
+        query(
+          collection(db, "directionTaps"),
+          where("merchantId", "==", String(merchantId))
+        )
+      ),
+      getDocs(
+        query(
+          collection(db, "flagReports"),
+          where("merchantId", "==", String(merchantId))
+        )
+      ),
+      getDocs(collection(db, "merchants", String(merchantId), "activity")),
+    ]);
     tapsSnap.docs.forEach((d) => {
       const data = d.data();
-      const ms = data.tappedAt?.toMillis
-        ? data.tappedAt.toMillis()
-        : Date.now();
+      const ms = timestampMillis(data.tappedAt);
       activities.push({
+        id: `directions-${d.id}`,
         icon: "location",
         text: "A shopper requested directions to your shop",
-        time: formatRelativeTime(ms),
+        time: ms ? formatRelativeTime(ms) : "Recently",
         timestamp: ms,
       });
     });
 
-    // Query recent flag reports
-    const flagsSnap = await getDocs(
-      query(
-        collection(db, "flagReports"),
-        where("merchantId", "==", String(merchantId)),
-        limit(5)
-      )
-    );
     flagsSnap.docs.forEach((d) => {
       const data = d.data();
-      const ms = data.createdAt?.toMillis
-        ? data.createdAt.toMillis()
-        : Date.now();
+      const ms = timestampMillis(data.createdAt);
       activities.push({
+        id: `flag-${d.id}`,
         icon: data.status === "resolved" ? "verified" : "alert",
         text:
           data.status === "resolved"
             ? `Flag report resolved (${data.issueType || "Hours"})`
             : `New flag report: ${data.issueType || "Information"} reported`,
-        time: formatRelativeTime(ms),
+        time: ms ? formatRelativeTime(ms) : "Recently",
         timestamp: ms,
       });
     });
 
+    customerActivitySnap.docs.forEach((d) => {
+      const data = d.data();
+      const ms = timestampMillis(data.createdAt);
+      if (data.type === "saved") {
+        activities.push({
+          id: `customer-${d.id}`,
+          icon: "saved",
+          text: "A shopper saved your shop",
+          time: ms ? formatRelativeTime(ms) : "Recently",
+          timestamp: ms,
+        });
+      } else if (data.type === "review") {
+        activities.push({
+          id: `customer-${d.id}`,
+          icon: "review",
+          text: `A shopper left a ${Number(data.rating) || 0}-star review`,
+          time: ms ? formatRelativeTime(ms) : "Recently",
+          timestamp: ms,
+        });
+      }
+    });
+
     // Sort descending by timestamp
     activities.sort((a, b) => b.timestamp - a.timestamp);
-
-    if (activities.length === 0) {
-      return [
-        {
-          icon: "verified",
-          text: "Listing active and verified in local search",
-          time: "Today",
-          timestamp: Date.now(),
-        },
-      ];
-    }
-
-    return activities.slice(0, 6);
+    return activities;
   } catch (err) {
-    console.warn("fetchMerchantRecentActivity error:", err);
-    return [];
+    const error = err as { code?: unknown; message?: unknown };
+    console.warn(
+      "fetchMerchantRecentActivity Firestore error:",
+      typeof error.code === "string" ? error.code : "unknown",
+      typeof error.message === "string" ? error.message : "Unknown Firestore error"
+    );
+    throw err;
   }
 };
 
@@ -1366,6 +1403,26 @@ export const createMerchantPost = async (
     console.error("createMerchantPost error:", err);
     return null;
   }
+};
+
+export const updateMerchantPost = async (
+  merchantId: string,
+  postId: string,
+  data: { images: string[]; caption: string; type: string }
+): Promise<void> => {
+  if (!isFirebaseConfigured() || !merchantId || !postId) {
+    throw new Error("Post update is unavailable.");
+  }
+  const images = data.images;
+  await updateDoc(
+    doc(db, "merchants", String(merchantId), "posts", String(postId)),
+    {
+      image: images[0] || "",
+      images,
+      caption: data.caption,
+      type: data.type,
+    }
+  );
 };
 
 export const fetchMerchantPosts = async (

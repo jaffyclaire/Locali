@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -6,94 +6,85 @@ import {
   ScrollView,
   StyleSheet,
   ActivityIndicator,
+  RefreshControl,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useFocusEffect } from "expo-router";
 import { useAuthRole } from "../../src/context/AuthRoleContext";
 import { Colors, Radius, Shadows } from "../../src/constants/theme";
 import { FlagReportItem } from "../../src/types";
 import {
   BookmarkIcon,
   FireIcon,
-  MegaphoneIcon,
   CheckIcon,
   StarIcon,
+  LocationIcon,
+  AlertTriangleIcon,
+  RightArrowIcon,
 } from "../../src/components/icons/AppIcons";
 import {
   fetchMerchantByOwner,
   getLatestStreak,
   fetchMerchantFlagReports,
+  fetchMerchantRecentActivity,
+  MerchantActivityItem,
   resolveMerchantFlagReport,
 } from "../../src/services/firestoreService";
-import {
-  fetchMerchantCustomerActivity,
-  MerchantCustomerActivity,
-} from "../../src/services/merchantCommunityService";
-
-const activityTimeAgo = (value: unknown): string => {
-  let date: Date | null = null;
-  if (value instanceof Date) {
-    date = value;
-  } else if (value && typeof value === "object" && "toDate" in value) {
-    const toDate = value.toDate;
-    if (typeof toDate === "function") {
-      const result: unknown = toDate.call(value);
-      if (result instanceof Date) date = result;
-    }
-  } else if (typeof value === "string" || typeof value === "number") {
-    const result = new Date(value);
-    if (!Number.isNaN(result.getTime())) date = result;
-  }
-  if (!date) return "Recently";
-  const minutes = Math.max(0, Math.floor((Date.now() - date.getTime()) / 60000));
-  if (minutes < 1) return "Just now";
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return days < 30 ? `${days}d ago` : date.toLocaleDateString();
-};
 
 export default function MerchantActivityScreen() {
   const { user } = useAuthRole();
   const [reports, setReports] = useState<FlagReportItem[]>([]);
-  const [customerActivities, setCustomerActivities] = useState<
-    MerchantCustomerActivity[]
-  >([]);
-  const [streakCount, setStreakCount] = useState<number>(1);
+  const [customerActivities, setCustomerActivities] = useState<MerchantActivityItem[]>([]);
+  const [streakCount, setStreakCount] = useState(0);
   const [loading, setLoading] = useState<boolean>(true);
   const [activityError, setActivityError] = useState(false);
+  const [reportsError, setReportsError] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [visibleActivityCount, setVisibleActivityCount] = useState(20);
 
-  const loadActivityData = useCallback(async () => {
+  const loadActivityData = useCallback(async (isRefresh = false) => {
     try {
+      if (isRefresh) setRefreshing(true);
+      else setLoading(true);
       const merchant = user?.uid ? await fetchMerchantByOwner(user.uid) : null;
-      setActivityError(false);
       if (!merchant) {
         setReports([]);
         setCustomerActivities([]);
-        setStreakCount(1);
+        setStreakCount(0);
+        setActivityError(false);
+        setReportsError(false);
         return;
       }
 
       const mId = String(merchant.id);
-      const [streak, flagList, customerActivity] = await Promise.all([
+      const [streakResult, reportsResult, activityResult] = await Promise.allSettled([
         getLatestStreak(mId),
         fetchMerchantFlagReports(mId),
-        fetchMerchantCustomerActivity(mId),
+        fetchMerchantRecentActivity(mId),
       ]);
-      setStreakCount(streak || 1);
-      setReports(flagList);
-      setCustomerActivities(customerActivity);
-    } catch (err) {
+      setStreakCount(streakResult.status === "fulfilled" ? streakResult.value : 0);
+      setReportsError(reportsResult.status === "rejected");
+      setReports(reportsResult.status === "fulfilled" ? reportsResult.value : []);
+      setActivityError(activityResult.status === "rejected");
+      setCustomerActivities(
+        activityResult.status === "fulfilled" ? activityResult.value : []
+      );
+      setVisibleActivityCount(20);
+    } catch (error) {
+      console.warn("Error loading merchant activity:", error);
       setActivityError(true);
-      console.warn("Error loading activity data:", err);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, [user]);
 
-  useEffect(() => {
-    loadActivityData();
-  }, [loadActivityData]);
+  useFocusEffect(
+    useCallback(() => {
+      void loadActivityData();
+    }, [loadActivityData])
+  );
 
   const handleResolve = async (
     id: string | number,
@@ -107,13 +98,21 @@ export default function MerchantActivityScreen() {
       )
     );
     try {
-      await resolveMerchantFlagReport(String(id), action);
-    } catch (err) {
-      console.error("Resolve report error:", err);
+      const resolved = await resolveMerchantFlagReport(String(id), action);
+      if (!resolved) {
+        await loadActivityData(true);
+        Alert.alert("Unable to update report", "Please try again.");
+      }
+    } catch (error) {
+      console.error("Resolve report error:", error);
+      await loadActivityData(true);
+      Alert.alert("Unable to update report", "Please try again.");
     }
   };
 
-  const pendingCount = reports.filter((r) => !r.resolved).length;
+  const pendingCount = reports.filter(
+    (report) => !report.resolved && report.status !== "resolved"
+  ).length;
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
@@ -122,13 +121,21 @@ export default function MerchantActivityScreen() {
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Activity</Text>
           <Text style={styles.headerSubtitle}>
-            Customer reports & system alerts
+            Shopper events & customer reports
           </Text>
         </View>
 
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => void loadActivityData(true)}
+              tintColor={Colors.teal[700]}
+              colors={[Colors.teal[700]]}
+            />
+          }
         >
           {/* Streak alert */}
           <View style={styles.alertCard}>
@@ -137,23 +144,14 @@ export default function MerchantActivityScreen() {
             </View>
             <View style={styles.alertTextGroup}>
               <Text style={styles.alertTitle}>
-                {streakCount}-day check-in streak!
+                {streakCount > 0
+                  ? `${streakCount}-day check-in streak!`
+                  : "Check in today to start your streak"}
               </Text>
               <Text style={styles.alertSub}>
-                Keep verifying daily to boost your ranking in the For-You feed.
-              </Text>
-            </View>
-          </View>
-
-          {/* Promo push alert */}
-          <View style={styles.alertCard}>
-            <View style={styles.promoIconCircle}>
-              <MegaphoneIcon size={20} color={Colors.teal[600]} />
-            </View>
-            <View style={styles.alertTextGroup}>
-              <Text style={styles.alertTitle}>Promo push delivered</Text>
-              <Text style={styles.alertSub}>
-                Your sponsored alert reached 247 nearby users this morning.
+                {streakCount > 0
+                  ? "Keep verifying daily to boost your ranking in the For-You feed."
+                  : "Confirm your business hours from the dashboard to begin."}
               </Text>
             </View>
           </View>
@@ -163,41 +161,64 @@ export default function MerchantActivityScreen() {
             {loading ? (
               <ActivityIndicator color={Colors.teal[700]} />
             ) : activityError ? (
-              <Text style={styles.customerActivityEmpty}>
-                Shopper activity could not be loaded.
-              </Text>
+              <View style={styles.customerActivityErrorBox}>
+                <Text style={styles.errorText}>
+                  Shopper activity could not be loaded. Check the Firestore
+                  activity rule, then retry.
+                </Text>
+                <TouchableOpacity
+                  style={styles.retryButton}
+                  onPress={() => void loadActivityData(true)}
+                  activeOpacity={0.75}
+                >
+                  <Text style={styles.retryButtonText}>Retry</Text>
+                </TouchableOpacity>
+              </View>
             ) : customerActivities.length === 0 ? (
               <Text style={styles.customerActivityEmpty}>
-                No shoppers have saved or reviewed your shop yet.
+                No shopper activity yet
               </Text>
             ) : (
-              customerActivities.map((activity) => (
+              customerActivities.slice(0, visibleActivityCount).map((activity) => (
                 <View key={activity.id} style={styles.customerActivityCard}>
                   <View style={styles.customerActivityIcon}>
-                    {activity.type === "saved" ? (
+                    {activity.icon === "saved" ? (
                       <BookmarkIcon size={17} color={Colors.teal[700]} />
-                    ) : (
+                    ) : activity.icon === "location" ? (
+                      <LocationIcon size={17} color={Colors.teal[700]} />
+                    ) : activity.icon === "alert" ? (
+                      <AlertTriangleIcon size={17} color={Colors.rose[500]} />
+                    ) : activity.icon === "review" ? (
                       <StarIcon size={17} color={Colors.amber[500]} />
+                    ) : (
+                      <CheckIcon size={17} color={Colors.teal[700]} />
                     )}
                   </View>
                   <View style={styles.customerActivityContent}>
                     <Text style={styles.customerActivityTitle}>
-                      {activity.type === "saved"
-                        ? `${activity.shopperName} saved your shop`
-                        : `${activity.shopperName} left a ${activity.rating || 0}-star review`}
+                      {activity.text}
                     </Text>
-                    {activity.type === "review" && activity.comment ? (
-                      <Text style={styles.customerActivityComment}>
-                        {activity.comment}
-                      </Text>
-                    ) : null}
                     <Text style={styles.customerActivityTime}>
-                      {activityTimeAgo(activity.createdAt)}
+                      {activity.time}
                     </Text>
                   </View>
                 </View>
               ))
             )}
+            {!loading &&
+              !activityError &&
+              customerActivities.length > visibleActivityCount && (
+                <TouchableOpacity
+                  style={styles.loadMoreButton}
+                  onPress={() =>
+                    setVisibleActivityCount((count) => count + 20)
+                  }
+                  activeOpacity={0.75}
+                >
+                  <Text style={styles.retryButtonText}>Load more</Text>
+                  <RightArrowIcon size={16} color={Colors.teal[700]} />
+                </TouchableOpacity>
+              )}
           </View>
 
           {/* Flag Reports */}
@@ -212,7 +233,24 @@ export default function MerchantActivityScreen() {
             </View>
 
             <View style={styles.reportsList}>
-              {reports.length === 0 ? (
+              {loading ? (
+                <View style={styles.emptyReportsBox}>
+                  <ActivityIndicator color={Colors.teal[700]} />
+                </View>
+              ) : reportsError ? (
+                <View style={styles.emptyReportsBox}>
+                  <Text style={styles.errorText}>
+                    Customer reports could not be loaded.
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.retryButton}
+                    onPress={() => void loadActivityData(true)}
+                    activeOpacity={0.75}
+                  >
+                    <Text style={styles.retryButtonText}>Retry</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : reports.length === 0 ? (
                 <View style={styles.emptyReportsBox}>
                   <Text style={styles.emptyReportsText}>
                     No customer reports submitted yet.
@@ -245,7 +283,9 @@ export default function MerchantActivityScreen() {
                       )}
                     </View>
 
-                    <Text style={styles.reportDetailText}>{r.detail}</Text>
+                    <Text style={styles.reportDetailText} numberOfLines={2}>
+                      {r.detail}
+                    </Text>
                     <Text style={styles.reportTimeText}>{r.time}</Text>
 
                     {!r.resolved && (
@@ -337,17 +377,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  promoIconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: Radius.full,
-    backgroundColor: Colors.teal[50],
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  alertEmoji: {
-    fontSize: 20,
-  },
   alertTextGroup: {
     flex: 1,
   },
@@ -389,6 +418,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.slate[100],
   },
+  customerActivityErrorBox: {
+    backgroundColor: Colors.white,
+    borderRadius: Radius.xl,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: Colors.slate[100],
+    gap: 12,
+  },
   customerActivityCard: {
     backgroundColor: Colors.white,
     borderRadius: Radius["2xl"],
@@ -416,12 +453,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
     lineHeight: 18,
-  },
-  customerActivityComment: {
-    color: Colors.slate[600],
-    fontSize: 12,
-    lineHeight: 17,
-    marginTop: 5,
   },
   customerActivityTime: {
     color: Colors.slate[400],
@@ -456,6 +487,35 @@ const styles = StyleSheet.create({
   emptyReportsText: {
     fontSize: 13,
     color: Colors.slate[400],
+  },
+  errorText: {
+    color: Colors.rose[600],
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  retryButton: {
+    minHeight: 40,
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 14,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.teal[50],
+  },
+  retryButtonText: {
+    color: Colors.teal[700],
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  loadMoreButton: {
+    minHeight: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    borderRadius: Radius.lg,
+    backgroundColor: Colors.white,
   },
   reportCard: {
     backgroundColor: Colors.white,

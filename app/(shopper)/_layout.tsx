@@ -1,5 +1,5 @@
 import React from "react";
-import { Tabs, Redirect } from "expo-router";
+import { Tabs, Redirect, usePathname } from "expo-router";
 import { View, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Colors } from "../../src/constants/theme";
@@ -14,6 +14,7 @@ import {
 export default function ShopperTabsLayout() {
   const { role, isAuthenticated, isLoading } = useAuthRole();
   const insets = useSafeAreaInsets();
+  const isBusinessPage = usePathname().includes("/business/");
 
   if (isLoading) {
     return (
@@ -44,6 +45,7 @@ export default function ShopperTabsLayout() {
 
   return (
     <Tabs
+      backBehavior="history"
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: Colors.teal[700],
@@ -78,11 +80,16 @@ export default function ShopperTabsLayout() {
         name="discover"
         options={{
           title: "Discover",
+          tabBarLabelStyle: isBusinessPage
+            ? { color: Colors.teal[700], fontSize: 11, fontWeight: "600" }
+            : undefined,
           tabBarIcon: ({ focused }) => (
             <CompassIcon
               size={22}
-              active={focused}
-              color={focused ? Colors.teal[700] : Colors.slate[400]}
+              active={focused || isBusinessPage}
+              color={
+                focused || isBusinessPage ? Colors.teal[700] : Colors.slate[400]
+              }
             />
           ),
         }}

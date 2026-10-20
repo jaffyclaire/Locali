@@ -14,6 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuthRole } from "../../src/context/AuthRoleContext";
 import { Colors, Radius, Shadows } from "../../src/constants/theme";
 import { EyeIcon, EyeOffIcon } from "../../src/components/icons/AppIcons";
+import { AppLogo } from "../../src/components/AppLogo";
 import { getReadableAuthErrorMessage } from "../../src/lib/authErrors";
 import { isValidEmail } from "../../src/lib/authValidation";
 
@@ -85,9 +86,7 @@ export default function SignInScreen() {
         >
           {/* Header */}
           <View style={styles.header}>
-            <View style={styles.logoBox}>
-              <Text style={styles.logoText}>L</Text>
-            </View>
+            <AppLogo />
             <Text style={styles.title}>Welcome back</Text>
             <Text style={styles.subtitle}>
               Sign in to discover local businesses near you
@@ -222,21 +221,6 @@ const styles = StyleSheet.create({
   },
   header: {
     marginBottom: 36,
-  },
-  logoBox: {
-    width: 44,
-    height: 44,
-    borderRadius: Radius.xl,
-    backgroundColor: Colors.teal[700],
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 20,
-    ...Shadows.sm,
-  },
-  logoText: {
-    color: Colors.white,
-    fontSize: 20,
-    fontWeight: "800",
   },
   title: {
     fontSize: 26,
